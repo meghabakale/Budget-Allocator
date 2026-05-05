@@ -13,6 +13,7 @@ export interface IBudgetRequest extends Document {
   _id: mongoose.Types.ObjectId;
   departmentId: string;
   departmentName: string;
+  location: string;
   requestedBy: mongoose.Types.ObjectId;
   requestedAmount: number;
   allocatedAmount: number;
@@ -30,6 +31,7 @@ const BudgetRequestSchema = new Schema<IBudgetRequest>(
   {
     departmentId: { type: String, required: true },
     departmentName: { type: String, required: true },
+    location: { type: String, default: "" },
     requestedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     requestedAmount: { type: Number, required: true },
     allocatedAmount: { type: Number, default: 0 },

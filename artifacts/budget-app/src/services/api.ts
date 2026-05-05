@@ -70,4 +70,38 @@ export const api = {
       window.open(`${BASE}/export/${type}?format=${format}&token=${token}`, "_blank");
     },
   },
+  finance: {
+    overview: () => request<Record<string, unknown>>("/finance/overview"),
+    allocate: (priorityOverrides?: Record<string, number>) =>
+      request<Record<string, unknown>>("/finance/allocate-budget", {
+        method: "POST",
+        body: JSON.stringify({ priorityOverrides }),
+      }),
+    override: (adminId: string, allocatedBudget: number, adminNote?: string) =>
+      request<Record<string, unknown>>("/finance/override-allocation", {
+        method: "PUT",
+        body: JSON.stringify({ adminId, allocatedBudget, adminNote }),
+      }),
+    setPriority: (adminId: string, priorityScore: number, performanceScore?: number) =>
+      request<Record<string, unknown>>("/finance/set-priority", {
+        method: "PUT",
+        body: JSON.stringify({ adminId, priorityScore, performanceScore }),
+      }),
+    admins: () => request<Record<string, unknown>[]>("/finance/admins"),
+  },
+  locationAdmin: {
+    departments: () => request<Record<string, unknown>[]>("/location-admin/departments"),
+    requests: () => request<Record<string, unknown>[]>("/location-admin/requests"),
+    summary: () => request<Record<string, unknown> | Record<string, unknown>[]>("/location-admin/summary"),
+    submitDemand: (demandAmount: number, note?: string) =>
+      request<Record<string, unknown>>("/location-admin/demand", {
+        method: "POST",
+        body: JSON.stringify({ demandAmount, note }),
+      }),
+    resolve: (id: string, action: "approve" | "reject", adminNote?: string) =>
+      request<Record<string, unknown>>(`/location-admin/resolve/${id}`, {
+        method: "POST",
+        body: JSON.stringify({ action, adminNote }),
+      }),
+  },
 };

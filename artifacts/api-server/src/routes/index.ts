@@ -7,6 +7,8 @@ import conflictsRouter from "./conflicts.js";
 import negotiationRouter from "./negotiation.js";
 import auditRouter from "./audit.js";
 import exportRouter from "./export.js";
+import financeRouter from "./finance.js";
+import adminLocationRouter from "./adminLocation.js";
 
 const router: IRouter = Router();
 
@@ -18,5 +20,7 @@ router.use("/conflicts", conflictsRouter);
 router.use("/messages", negotiationRouter);
 router.use("/audit", auditRouter);
 router.use("/export", exportRouter);
+router.use("/finance", financeRouter);
+router.use("/location-admin", adminLocationRouter);
 
 export default router;

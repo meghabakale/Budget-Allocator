@@ -12,21 +12,37 @@ import Requests from "./pages/Requests";
 import NegotiationPanel from "./pages/NegotiationPanel";
 import AdminPanel from "./pages/AdminPanel";
 import AuditLogs from "./pages/AuditLogs";
+import FinanceDashboard from "./pages/FinanceDashboard";
+import LocationAdminDashboard from "./pages/LocationAdminDashboard";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ component: Component, adminOnly }: { component: React.ComponentType; adminOnly?: boolean }) {
-  const { user, isAdmin } = useAuth();
+function ProtectedRoute({
+  component: Component,
+  requireFinance,
+  requireLocationAdmin,
+  requireElevated,
+}: {
+  component: React.ComponentType;
+  requireFinance?: boolean;
+  requireLocationAdmin?: boolean;
+  requireElevated?: boolean;
+}) {
+  const { user, isFinanceManager, isLocationAdmin, isAdmin } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     if (!user) { setLocation("/login"); return; }
-    if (adminOnly && !isAdmin) { setLocation("/dashboard"); return; }
-  }, [user, isAdmin, adminOnly, setLocation]);
+    if (requireFinance && !isFinanceManager) { setLocation("/dashboard"); return; }
+    if (requireLocationAdmin && !isLocationAdmin) { setLocation("/dashboard"); return; }
+    if (requireElevated && !isAdmin) { setLocation("/dashboard"); return; }
+  }, [user, isFinanceManager, isLocationAdmin, isAdmin, requireFinance, requireLocationAdmin, requireElevated, setLocation]);
 
   if (!user) return null;
-  if (adminOnly && !isAdmin) return null;
+  if (requireFinance && !isFinanceManager) return null;
+  if (requireLocationAdmin && !isLocationAdmin) return null;
+  if (requireElevated && !isAdmin) return null;
   return <Component />;
 }
 
@@ -44,24 +60,14 @@ function AppRouter() {
     <Switch>
       <Route path="/" component={RootRedirect} />
       <Route path="/login" component={Login} />
-      <Route path="/dashboard">
-        {() => <ProtectedRoute component={Dashboard} />}
-      </Route>
-      <Route path="/allocation">
-        {() => <ProtectedRoute component={AllocationBoard} />}
-      </Route>
-      <Route path="/requests">
-        {() => <ProtectedRoute component={Requests} />}
-      </Route>
-      <Route path="/negotiation/:id?">
-        {(params) => <ProtectedRoute component={() => <NegotiationPanel />} />}
-      </Route>
-      <Route path="/admin">
-        {() => <ProtectedRoute component={AdminPanel} adminOnly />}
-      </Route>
-      <Route path="/audit">
-        {() => <ProtectedRoute component={AuditLogs} adminOnly />}
-      </Route>
+      <Route path="/dashboard">{() => <ProtectedRoute component={Dashboard} />}</Route>
+      <Route path="/allocation">{() => <ProtectedRoute component={AllocationBoard} />}</Route>
+      <Route path="/requests">{() => <ProtectedRoute component={Requests} />}</Route>
+      <Route path="/negotiation/:id?">{() => <ProtectedRoute component={() => <NegotiationPanel />} />}</Route>
+      <Route path="/finance">{() => <ProtectedRoute component={FinanceDashboard} requireFinance />}</Route>
+      <Route path="/location-admin">{() => <ProtectedRoute component={LocationAdminDashboard} requireLocationAdmin />}</Route>
+      <Route path="/admin">{() => <ProtectedRoute component={AdminPanel} requireElevated />}</Route>
+      <Route path="/audit">{() => <ProtectedRoute component={AuditLogs} requireElevated />}</Route>
       <Route component={NotFound} />
     </Switch>
   );
