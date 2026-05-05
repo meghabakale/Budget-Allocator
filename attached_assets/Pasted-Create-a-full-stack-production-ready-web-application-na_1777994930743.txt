@@ -1,0 +1,328 @@
+Create a full-stack, production-ready web application named:
+
+"Real-Time Collaborative Budget Allocation System with Conflict Arbitration"
+
+The project must be fully runnable in a Replit environment.
+
+---
+
+🔷 TECH STACK (MANDATORY)
+
+Frontend:
+
+- React (Vite)
+- Tailwind CSS
+- Context API or Redux Toolkit
+- Socket.io-client
+
+Backend:
+
+- Node.js + Express.js
+- MongoDB with Mongoose
+- Socket.io (real-time communication)
+- JWT Authentication
+
+---
+
+🔷 PROJECT STRUCTURE
+
+Generate complete folder structure:
+
+/backend
+/config
+/controllers
+/middleware
+/models
+/routes
+/services
+/sockets
+/utils
+app.js
+server.js
+
+/frontend
+/src
+/components
+/pages
+/context
+/services
+/sockets
+App.jsx
+main.jsx
+
+Also include:
+
+- package.json (both frontend + backend)
+- .env example file
+
+---
+
+🔷 CORE FEATURES
+
+1. Shared Budget Pool
+
+- Fields:
+  totalBudget
+  allocatedAmount
+  remainingAmount
+- Real-time updates across all users
+
+---
+
+2. Budget Request System
+   Fields:
+
+- departmentId
+- requestedAmount
+- allocatedAmount
+- priorityLevel (High, Medium, Low)
+- justification
+- status:
+  pending, approved, rejected, conflicted, under_negotiation
+- version (for concurrency control)
+
+---
+
+3. Optimistic Concurrency Control
+
+- Each request has a version number
+- On update:
+  - If version mismatch → mark as CONFLICTED
+
+---
+
+4. Conflict Arbitration Engine (Service Layer)
+   Rules:
+5. Higher priority wins
+6. If same priority → earlier request wins
+7. Else → admin decision
+
+Admin can override:
+
+- Approve
+- Reject
+- Adjust allocation
+
+---
+
+5. Cascading Recalculation Engine
+
+- Trigger on:
+  
+  - request create/update
+  - conflict resolution
+  - admin override
+  - rollback
+
+- Must:
+  
+  - update remaining budget
+  - re-evaluate all requests
+
+---
+
+6. Real-Time System (Socket.io)
+
+Client → Server:
+
+- CREATE_REQUEST
+- UPDATE_REQUEST
+- NEGOTIATE
+- RESOLVE_CONFLICT
+
+Server → Client:
+
+- REQUEST_CREATED
+- REQUEST_UPDATED
+- REQUEST_CONFLICTED
+- BUDGET_UPDATED
+- NEGOTIATION_MESSAGE
+- REQUEST_STATUS_CHANGED
+
+---
+
+7. Negotiation System
+
+- Chat-based UI per request
+
+- Messages include:
+  messageId
+  requestId
+  senderId
+  message
+  timestamp
+
+- IMPORTANT:
+  Chat is only for discussion
+  Decisions happen via actions:
+  
+  - Approve
+  - Reject
+  - Revise
+
+---
+
+8. Audit Trail + Rollback
+
+Track:
+
+- userId
+- actionType
+- entityId
+- previousState
+- newState
+- timestamp
+
+Rollback:
+
+- Restore previous state
+- Trigger recalculation
+
+---
+
+9. Export System
+
+Formats:
+
+- CSV (json2csv)
+- PDF (pdfkit)
+- JSON
+
+Routes:
+
+- /export/budget
+- /export/requests
+- /export/audit
+
+---
+
+🔷 AUTH SYSTEM
+
+- JWT-based login/register
+- Role-based access:
+  Admin
+  Department Head
+
+Middleware:
+
+- auth
+- role-based authorization
+
+---
+
+🔷 API ENDPOINTS
+
+Auth:
+POST /auth/register
+POST /auth/login
+
+Budget:
+GET /budget
+PUT /budget/update
+
+Requests:
+POST /requests
+GET /requests
+PUT /requests/:id
+DELETE /requests/:id
+
+Conflict:
+POST /conflicts/resolve
+
+Negotiation:
+POST /messages
+GET /messages/:requestId
+
+Audit:
+GET /audit
+
+Export:
+GET /export/:type
+
+---
+
+🔷 FRONTEND PAGES
+
+1. Home Page (Landing)
+2. Login / Register
+3. Dashboard
+4. Allocation Board
+5. Requests Page
+6. Negotiation Panel (chat UI)
+7. Admin Panel
+8. Audit Logs Page
+
+---
+
+🔷 UI REQUIREMENTS
+
+- Modern SaaS dashboard (clean, minimal)
+
+- Cards, tables, modals
+
+- Color coding:
+  Green = approved
+  Red = rejected
+  Yellow = conflict
+  Blue = pending
+
+- Real-time indicators:
+  
+  - active users
+  - live updates
+  - editing status
+
+---
+
+🔷 MOCK DATA
+
+- Create sample users and departments
+- Seed database automatically
+
+---
+
+🔷 SETUP INSTRUCTIONS
+
+- Include steps to run:
+  backend → npm install + npm start
+  frontend → npm install + npm run dev
+
+- Use environment variables for:
+  
+  - MongoDB URI
+  - JWT secret
+  - Port
+
+---
+
+🔷 FINAL REQUIREMENT
+
+The generated project must:
+
+- Run without errors in Replit
+- Support multiple users
+- Show real-time updates
+- Demonstrate conflict resolution
+- Maintain consistent state
+
+---
+
+🔷 OUTPUT FORMAT
+
+Generate code step-by-step:
+
+1. Backend setup
+2. Models
+3. Middleware
+4. Services (conflict, recalculation, export)
+5. Routes
+6. Socket.io setup
+7. Frontend setup
+8. UI components
+9. Integration
+10. Run instructions
+
+---
+
+Goal:
+Deliver a fully functional real-time collaborative system where departments compete for a shared budget, conflicts are resolved intelligently, updates propagate instantly, and all actions are traceable and reversible.
