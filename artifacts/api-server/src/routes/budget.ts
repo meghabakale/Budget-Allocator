@@ -1,17 +1,23 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import Budget from "../models/Budget.js";
 import { authenticate, type AuthRequest } from "../middleware/auth.js";
 import { requireRole } from "../middleware/roleAuth.js";
 import { logAction } from "../services/auditService.js";
-import { runCascadeRecalculation } from "../services/cascadeRecalculation.js";
-import type mongoose from "mongoose";
+import { recalculateSystem } from "../services/cascadeRecalculation.js";
 
 const router = Router();
 
 router.get("/", authenticate, async (_req, res) => {
   try {
     let budget = await Budget.findOne();
-    if (!budget) budget = await Budget.create({ totalBudget: 1000000, allocatedAmount: 0, remainingAmount: 1000000 });
+    if (!budget) {
+      budget = await Budget.create({
+        totalBudget: 1000000,
+        allocatedAmount: 0,
+        remainingAmount: 1000000,
+      });
+    }
     res.json(budget);
   } catch {
     res.status(500).json({ error: "Failed to fetch budget" });
@@ -21,12 +27,19 @@ router.get("/", authenticate, async (_req, res) => {
 router.put("/update", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { totalBudget } = req.body;
+
+    if (typeof totalBudget !== "number" || totalBudget < 0) {
+      res.status(400).json({ error: "totalBudget must be a non-negative number" }); return;
+    }
+
     const budget = await Budget.findOne();
     if (!budget) { res.status(404).json({ error: "Budget not found" }); return; }
+
     const prev = budget.toObject();
     budget.totalBudget = totalBudget;
-    budget.remainingAmount = totalBudget - budget.allocatedAmount;
+    // remainingAmount will be corrected by recalculation engine
     await budget.save();
+
     await logAction({
       userId: req.user!.id as unknown as mongoose.Types.ObjectId,
       username: req.user!.username,
@@ -35,9 +48,13 @@ router.put("/update", authenticate, requireRole("admin"), async (req: AuthReques
       entityType: "Budget",
       previousState: prev as Record<string, unknown>,
       newState: budget.toObject() as Record<string, unknown>,
-      description: `Total budget updated to ${totalBudget}`,
+      description: `Total budget changed from $${prev.totalBudget.toLocaleString()} to $${totalBudget.toLocaleString()} by admin`,
     });
-    await runCascadeRecalculation();
+
+    // Run full recalculation — this will re-evaluate all requests under the new budget cap
+    // and emit BUDGET_UPDATED + REQUEST_STATUS_CHANGED via Socket.io
+    await recalculateSystem("BUDGET_UPDATED");
+
     const updated = await Budget.findOne();
     res.json(updated);
   } catch {
