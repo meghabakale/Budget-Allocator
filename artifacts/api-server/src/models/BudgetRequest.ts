@@ -2,11 +2,13 @@ import mongoose, { Schema, type Document } from "mongoose";
 
 export type RequestStatus =
   | "pending"
-  | "approved"
-  | "rejected"
-  | "conflicted"
+  | "under_review"
   | "under_negotiation"
-  | "pending_reapproval";
+  | "conflicted"
+  | "critical"
+  | "pending_reapproval"
+  | "approved"
+  | "rejected";
 
 export type PriorityLevel = "High" | "Medium" | "Low";
 
@@ -40,7 +42,16 @@ const BudgetRequestSchema = new Schema<IBudgetRequest>(
     justification: { type: String, required: true },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected", "conflicted", "under_negotiation", "pending_reapproval"],
+      enum: [
+        "pending",
+        "under_review",
+        "under_negotiation",
+        "conflicted",
+        "critical",
+        "pending_reapproval",
+        "approved",
+        "rejected",
+      ],
       default: "pending",
     },
     version: { type: Number, default: 1 },

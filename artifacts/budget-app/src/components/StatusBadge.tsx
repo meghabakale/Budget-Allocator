@@ -1,20 +1,45 @@
 type Status =
   | "pending"
-  | "approved"
-  | "rejected"
-  | "conflicted"
+  | "under_review"
   | "under_negotiation"
-  | "pending_reapproval";
+  | "conflicted"
+  | "critical"
+  | "pending_reapproval"
+  | "approved"
+  | "rejected";
 
 const config: Record<Status, { label: string; className: string }> = {
-  pending: { label: "Pending", className: "bg-blue-900/50 text-blue-300 border border-blue-700" },
-  approved: { label: "Approved", className: "bg-green-900/50 text-green-300 border border-green-700" },
-  rejected: { label: "Rejected", className: "bg-red-900/50 text-red-300 border border-red-700" },
-  conflicted: { label: "Conflicted", className: "bg-yellow-900/50 text-yellow-300 border border-yellow-700" },
-  under_negotiation: { label: "Negotiating", className: "bg-purple-900/50 text-purple-300 border border-purple-700" },
+  pending: {
+    label: "Pending",
+    className: "bg-blue-900/50 text-blue-300 border border-blue-700",
+  },
+  under_review: {
+    label: "Under Review",
+    className: "bg-orange-900/50 text-orange-300 border border-orange-600",
+  },
+  under_negotiation: {
+    label: "Under Negotiation",
+    className: "bg-yellow-900/50 text-yellow-300 border border-yellow-600",
+  },
+  conflicted: {
+    label: "Conflicted",
+    className: "bg-red-900/50 text-red-300 border border-red-700",
+  },
+  critical: {
+    label: "Critical",
+    className: "bg-purple-900/50 text-purple-300 border border-purple-600 animate-pulse",
+  },
   pending_reapproval: {
     label: "Pending Re-Approval",
-    className: "bg-orange-900/50 text-orange-300 border border-orange-600 animate-pulse",
+    className: "bg-cyan-900/50 text-cyan-300 border border-cyan-600 animate-pulse",
+  },
+  approved: {
+    label: "Approved",
+    className: "bg-green-900/50 text-green-300 border border-green-700",
+  },
+  rejected: {
+    label: "Rejected",
+    className: "bg-gray-800 text-gray-400 border border-gray-600",
   },
 };
 
@@ -32,9 +57,11 @@ export default function StatusBadge({ status }: { status: string }) {
 
 export function PriorityBadge({ priority }: { priority: string }) {
   const cls =
-    priority === "High" ? "bg-red-900/50 text-red-300 border border-red-700"
-    : priority === "Medium" ? "bg-orange-900/50 text-orange-300 border border-orange-700"
-    : "bg-gray-800 text-gray-400 border border-gray-600";
+    priority === "High"
+      ? "bg-red-900/50 text-red-300 border border-red-700"
+      : priority === "Medium"
+      ? "bg-orange-900/50 text-orange-300 border border-orange-700"
+      : "bg-gray-800 text-gray-400 border border-gray-600";
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
       {priority}

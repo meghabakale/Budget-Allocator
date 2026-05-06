@@ -48,6 +48,11 @@ export const api = {
       request<Record<string, unknown>>(`/requests/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<Record<string, unknown>>(`/requests/${id}`, { method: "DELETE" }),
+    updateStatus: (id: string, status: string, adminNote?: string, reason?: string) =>
+      request<Record<string, unknown>>(`/requests/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, adminNote, reason }),
+      }),
   },
   conflicts: {
     resolve: (data: Record<string, unknown>) =>
@@ -98,10 +103,10 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ demandAmount, note }),
       }),
-    resolve: (id: string, action: "approve" | "reject", adminNote?: string) =>
+    resolve: (id: string, action: string, adminNote?: string, reason?: string) =>
       request<Record<string, unknown>>(`/location-admin/resolve/${id}`, {
         method: "POST",
-        body: JSON.stringify({ action, adminNote }),
+        body: JSON.stringify({ action, adminNote, reason }),
       }),
   },
 };

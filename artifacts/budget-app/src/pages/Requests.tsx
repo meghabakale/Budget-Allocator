@@ -6,7 +6,10 @@ import { api } from "../services/api";
 import Layout from "../components/Layout";
 import StatusBadge, { PriorityBadge } from "../components/StatusBadge";
 import { formatCurrency } from "../lib/currency";
-import { Plus, Trash2, Edit2, MessageSquare, X, Loader2, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import {
+  Plus, Trash2, Edit2, MessageSquare, X, Loader2,
+  Clock, Eye, MessageCircle, Zap, CheckCircle2, XCircle,
+} from "lucide-react";
 
 interface Request {
   _id: string;
@@ -19,6 +22,51 @@ interface Request {
   version: number;
   createdAt: string;
   adminNote?: string;
+}
+
+const STATUS_TIMELINE: Array<{ status: string; label: string }> = [
+  { status: "pending", label: "Submitted" },
+  { status: "under_review", label: "Under Review" },
+  { status: "under_negotiation", label: "Negotiation" },
+  { status: "approved", label: "Approved" },
+];
+
+const TERMINAL_STATUSES = new Set(["rejected", "conflicted", "critical", "pending_reapproval"]);
+
+function StatusTimeline({ status }: { status: string }) {
+  if (TERMINAL_STATUSES.has(status)) {
+    return (
+      <div className="flex items-center gap-2 mt-2">
+        <StatusBadge status={status} />
+      </div>
+    );
+  }
+  const currentIdx = STATUS_TIMELINE.findIndex((s) => s.status === status);
+  return (
+    <div className="flex items-center gap-1 mt-2">
+      {STATUS_TIMELINE.map((step, idx) => {
+        const done = idx < currentIdx;
+        const active = idx === currentIdx;
+        return (
+          <div key={step.status} className="flex items-center gap-1">
+            <div className="flex flex-col items-center">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  done ? "bg-green-400" : active ? "bg-blue-400 ring-2 ring-blue-400/30" : "bg-gray-700"
+                }`}
+              />
+              <span className={`text-[9px] mt-0.5 whitespace-nowrap ${active ? "text-blue-300" : done ? "text-green-400" : "text-gray-600"}`}>
+                {step.label}
+              </span>
+            </div>
+            {idx < STATUS_TIMELINE.length - 1 && (
+              <div className={`w-6 h-px mb-3 ${done ? "bg-green-400/50" : "bg-gray-700"}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function RequestModal({ onClose, onSave, initial }: {
@@ -104,13 +152,21 @@ function RequestModal({ onClose, onSave, initial }: {
   );
 }
 
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  pending: <Clock size={12} className="text-blue-400" />,
+  under_review: <Eye size={12} className="text-orange-400" />,
+  under_negotiation: <MessageCircle size={12} className="text-yellow-400" />,
+  critical: <Zap size={12} className="text-purple-400" />,
+  approved: <CheckCircle2 size={12} className="text-green-400" />,
+  rejected: <XCircle size={12} className="text-gray-400" />,
+};
+
 export default function Requests() {
   const { user, isFinanceManager, isLocationAdmin } = useAuth();
   const { socket } = useSocket();
   const [requests, setRequests] = useState<Request[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Request | undefined>();
-  const [resolving, setResolving] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const load = useCallback(async () => {
@@ -127,12 +183,14 @@ export default function Requests() {
     socket.on("REQUEST_STATUS_CHANGED", load);
     socket.on("REQUEST_CONFLICTED", load);
     socket.on("REQUEST_REQUIRES_REAPPROVAL", load);
+    socket.on("REQUEST_MARKED_CRITICAL", load);
     return () => {
       socket.off("REQUEST_CREATED", load);
       socket.off("REQUEST_UPDATED", load);
       socket.off("REQUEST_STATUS_CHANGED", load);
       socket.off("REQUEST_CONFLICTED", load);
       socket.off("REQUEST_REQUIRES_REAPPROVAL", load);
+      socket.off("REQUEST_MARKED_CRITICAL", load);
     };
   }, [socket, load]);
 
@@ -154,29 +212,25 @@ export default function Requests() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this request?")) return;
-    await api.requests.delete(id);
-    load();
-  };
-
-  const handleReapproval = async (req: Request, action: "approve" | "reject") => {
-    setResolving(req._id + action);
     try {
-      await api.conflicts.resolve({
-        requestId: req._id,
-        action,
-        allocatedAmount: action === "approve" ? req.requestedAmount : 0,
-      });
-      await load();
-      showToast(`Request ${action}d`, true);
+      await api.requests.delete(id);
+      load();
+      showToast("Request deleted", true);
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Action failed", false);
-    } finally {
-      setResolving(null);
+      showToast(e instanceof Error ? e.message : "Delete failed", false);
     }
   };
 
-  const canActOnReapproval = isFinanceManager || isLocationAdmin;
-  const pendingReapprovalCount = requests.filter((r) => r.status === "pending_reapproval").length;
+  const isAdmin = isFinanceManager || isLocationAdmin;
+
+  // Group requests for admin view
+  const criticalRequests = requests.filter((r) => r.status === "critical");
+  const pendingReapprovalRequests = requests.filter((r) => r.status === "pending_reapproval");
+  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const negotiationRequests = requests.filter((r) => r.status === "under_negotiation");
+  const otherRequests = requests.filter(
+    (r) => !["critical", "pending_reapproval", "pending", "under_negotiation"].includes(r.status)
+  );
 
   return (
     <Layout>
@@ -200,16 +254,28 @@ export default function Requests() {
           </button>
         </div>
 
-        {/* Pending Re-Approval alert */}
-        {pendingReapprovalCount > 0 && (
-          <div className="flex items-center gap-3 p-3 bg-orange-900/20 border border-orange-600/40 rounded-xl">
-            <RefreshCw size={14} className="text-orange-400 shrink-0" />
-            <p className="text-sm text-orange-300">
-              <span className="font-semibold">{pendingReapprovalCount} request(s)</span> moved to "Pending Re-Approval" — budget is now available. Awaiting admin action.
+        {/* Admin queues */}
+        {isAdmin && criticalRequests.length > 0 && (
+          <div className="p-3 bg-purple-900/20 border border-purple-600/40 rounded-xl">
+            <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider mb-1">
+              Critical — {criticalRequests.length} urgent request(s) requiring immediate attention
             </p>
+            {criticalRequests.map((r) => (
+              <p key={r._id} className="text-xs text-purple-200">{r.departmentName} — {formatCurrency(r.requestedAmount)}</p>
+            ))}
           </div>
         )}
 
+        {isAdmin && pendingReapprovalRequests.length > 0 && (
+          <div className="p-3 bg-cyan-900/20 border border-cyan-600/40 rounded-xl">
+            <p className="text-xs font-semibold text-cyan-300 uppercase tracking-wider mb-1">
+              Pending Re-Approval — {pendingReapprovalRequests.length} request(s) with budget now available
+            </p>
+            <p className="text-xs text-cyan-400/80">Budget is available but explicit admin approval is required.</p>
+          </div>
+        )}
+
+        {/* Main requests table */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -219,7 +285,7 @@ export default function Requests() {
                   <th className="text-left text-xs text-gray-500 px-4 py-3">Requested</th>
                   <th className="text-left text-xs text-gray-500 px-4 py-3">Allocated</th>
                   <th className="text-left text-xs text-gray-500 px-4 py-3">Priority</th>
-                  <th className="text-left text-xs text-gray-500 px-4 py-3">Status</th>
+                  <th className="text-left text-xs text-gray-500 px-4 py-3">Status / Timeline</th>
                   <th className="text-left text-xs text-gray-500 px-4 py-3">Actions</th>
                 </tr>
               </thead>
@@ -227,11 +293,21 @@ export default function Requests() {
                 {requests.map((req) => (
                   <tr
                     key={req._id}
-                    className={`hover:bg-gray-800/50 transition-colors ${req.status === "pending_reapproval" ? "bg-orange-950/20" : ""}`}
+                    className={`hover:bg-gray-800/50 transition-colors ${
+                      req.status === "critical" ? "bg-purple-950/20" :
+                      req.status === "pending_reapproval" ? "bg-cyan-950/20" :
+                      req.status === "under_review" ? "bg-orange-950/10" : ""
+                    }`}
                   >
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-white">{req.departmentName}</p>
                       <p className="text-xs text-gray-500 line-clamp-1 max-w-xs">{req.justification}</p>
+                      {req.adminNote && (
+                        <p className="text-xs text-amber-400/80 mt-1 flex items-start gap-1">
+                          <span className="shrink-0">Admin:</span>
+                          <span className="italic">{req.adminNote}</span>
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-white font-semibold">{formatCurrency(req.requestedAmount)}</td>
                     <td className="px-4 py-3 text-sm text-green-400 font-semibold">
@@ -239,48 +315,32 @@ export default function Requests() {
                     </td>
                     <td className="px-4 py-3"><PriorityBadge priority={req.priorityLevel} /></td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={req.status} />
-                      {req.adminNote && <p className="text-xs text-gray-500 mt-1">{req.adminNote}</p>}
+                      <div className="flex items-center gap-1.5">
+                        {STATUS_ICONS[req.status]}
+                        <StatusBadge status={req.status} />
+                      </div>
+                      <StatusTimeline status={req.status} />
                       {req.status === "pending_reapproval" && (
-                        <p className="text-xs text-orange-400 mt-1">Budget available — awaiting admin approval</p>
+                        <p className="text-xs text-cyan-400 mt-1">Budget available — awaiting admin approval</p>
                       )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {/* Re-approval actions for admins */}
-                        {req.status === "pending_reapproval" && canActOnReapproval && (
-                          <>
-                            <button
-                              onClick={() => handleReapproval(req, "approve")}
-                              disabled={resolving === req._id + "approve"}
-                              title="Approve re-approval"
-                              className="p-1.5 text-gray-500 hover:text-emerald-400 hover:bg-emerald-900/20 rounded-lg transition-colors"
-                            >
-                              {resolving === req._id + "approve" ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                            </button>
-                            <button
-                              onClick={() => handleReapproval(req, "reject")}
-                              disabled={resolving === req._id + "reject"}
-                              title="Reject re-approval"
-                              className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-                            >
-                              {resolving === req._id + "reject" ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
-                            </button>
-                          </>
-                        )}
-                        {(req.status === "pending" || req.status === "conflicted") && (
+                        {req.status === "pending" && (
                           <button
                             onClick={() => { setEditTarget(req); setShowModal(true); }}
                             className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
+                            title="Edit request"
                           ><Edit2 size={14} /></button>
                         )}
-                        <Link href={`/negotiation/${req._id}`} className="p-1.5 text-gray-500 hover:text-purple-400 hover:bg-purple-900/20 rounded-lg transition-colors inline-flex">
+                        <Link href={`/negotiation/${req._id}`} className="p-1.5 text-gray-500 hover:text-yellow-400 hover:bg-yellow-900/20 rounded-lg transition-colors inline-flex" title="Open negotiation">
                           <MessageSquare size={14} />
                         </Link>
                         {(req.status === "pending" || req.status === "rejected") && (
                           <button
                             onClick={() => handleDelete(req._id)}
                             className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                            title="Delete request"
                           ><Trash2 size={14} /></button>
                         )}
                       </div>
@@ -295,14 +355,31 @@ export default function Requests() {
           </div>
         </div>
 
-        {showModal && (
-          <RequestModal
-            onClose={() => setShowModal(false)}
-            onSave={editTarget ? handleEdit : handleCreate}
-            initial={editTarget}
-          />
+        {/* Summary counts for dept heads */}
+        {!isAdmin && requests.length > 0 && (
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { label: "Pending", count: pendingRequests.length, color: "text-blue-400" },
+              { label: "Negotiation", count: negotiationRequests.length, color: "text-yellow-400" },
+              { label: "Approved", count: otherRequests.filter((r) => r.status === "approved").length, color: "text-green-400" },
+              { label: "Rejected", count: otherRequests.filter((r) => r.status === "rejected").length, color: "text-gray-400" },
+            ].map((s) => (
+              <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+                <p className={`text-xl font-bold ${s.color}`}>{s.count}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
+
+      {showModal && (
+        <RequestModal
+          onClose={() => setShowModal(false)}
+          onSave={editTarget ? handleEdit : handleCreate}
+          initial={editTarget}
+        />
+      )}
     </Layout>
   );
 }

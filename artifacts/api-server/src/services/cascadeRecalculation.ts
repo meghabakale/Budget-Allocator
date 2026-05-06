@@ -1,14 +1,15 @@
 /**
  * Production-Grade Cascading Recalculation Engine
  *
- * Allocation rules (applied in order):
- *   1. Priority: High > Medium > Low
- *   2. Tie-break: earlier createdAt wins
- *   3. If requestedAmount ≤ remaining AND prevStatus is NOT conflicted/pending_reapproval → APPROVED
- *   4. If requestedAmount ≤ remaining AND prevStatus is conflicted → PENDING_REAPPROVAL (no auto-approve!)
- *   5. If requestedAmount > remaining → CONFLICTED (pending_reapproval reverts to conflicted)
- *   6. Explicitly rejected requests are NEVER touched (admin decisions)
- *   7. PENDING_REAPPROVAL requests do NOT consume budget — admin approval commits funds
+ * Allocation rules:
+ *   1. Only APPROVED requests consume budget — admin must explicitly approve.
+ *   2. PENDING / UNDER_REVIEW / UNDER_NEGOTIATION / CRITICAL are admin-workflow states.
+ *      The engine NEVER auto-approves them. Their allocatedAmount stays 0.
+ *   3. If an APPROVED request no longer fits (budget shrunk) → CONFLICTED.
+ *   4. CONFLICTED request fits within remaining budget → PENDING_REAPPROVAL (admin must re-approve).
+ *   5. PENDING_REAPPROVAL still fits → stay PENDING_REAPPROVAL (keep waiting for admin).
+ *   6. PENDING_REAPPROVAL no longer fits → back to CONFLICTED.
+ *   7. REJECTED requests are never touched (admin decisions are final).
  */
 
 import mongoose from "mongoose";
@@ -28,10 +29,13 @@ export type TriggerType =
   | "BUDGET_UPDATED"
   | "MANUAL";
 
-const PRIORITY_ORDER: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
-
-/** Set of statuses that were previously denied and require admin re-approval when budget opens up */
-const REQUIRES_REAPPROVAL = new Set(["conflicted"]);
+/** Statuses that are pure admin-workflow states — engine leaves them untouched */
+const ADMIN_WORKFLOW_STATUSES = new Set([
+  "pending",
+  "under_review",
+  "under_negotiation",
+  "critical",
+]);
 
 /** In-process lock to prevent concurrent recalculations from racing */
 let recalcRunning = false;
@@ -54,19 +58,22 @@ export async function recalculateSystem(triggerType: TriggerType): Promise<void>
   }
 }
 
+const PRIORITY_ORDER: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+
 async function _doRecalculate(triggerType: TriggerType): Promise<void> {
   const session = await mongoose.startSession();
 
   try {
     await session.withTransaction(async () => {
-      // ── 1. Fetch state ────────────────────────────────────────────────────
+      // ── 1. Fetch state ─────────────────────────────────────────────────────
       const budget = await Budget.findOne().session(session);
       if (!budget) throw new Error("Budget pool not found");
 
-      // Explicitly rejected = admin decision, never auto-touched.
-      // pending_reapproval = waiting for admin approval, re-evaluate eligibility.
-      const allRequests = await BudgetRequest.find({
-        status: { $nin: ["rejected"] },
+      // Only process requests that are relevant to budget math:
+      // approved, conflicted, pending_reapproval
+      // Skip: rejected (final), pending/under_review/under_negotiation/critical (admin manages)
+      const relevantRequests = await BudgetRequest.find({
+        status: { $in: ["approved", "conflicted", "pending_reapproval"] },
       })
         .session(session)
         .lean();
@@ -76,14 +83,18 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         allocatedAmount: budget.allocatedAmount,
         remainingAmount: budget.remainingAmount,
       };
-      const prevRequestStates = allRequests.map((r) => ({
+      const prevRequestStates = relevantRequests.map((r) => ({
         _id: r._id,
         status: r.status,
         allocatedAmount: r.allocatedAmount,
       }));
 
-      // ── 2. Sort by priority desc, then createdAt asc ──────────────────────
-      const sorted = [...allRequests].sort((a, b) => {
+      // ── 2. Sort: approved first (by priority desc, createdAt asc), then others ──
+      const sorted = [...relevantRequests].sort((a, b) => {
+        // Approved requests get priority in allocation ordering
+        const aApproved = a.status === "approved" ? 1 : 0;
+        const bApproved = b.status === "approved" ? 1 : 0;
+        if (bApproved !== aApproved) return bApproved - aApproved;
         const pDiff =
           (PRIORITY_ORDER[b.priorityLevel] ?? 0) -
           (PRIORITY_ORDER[a.priorityLevel] ?? 0);
@@ -91,7 +102,7 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       });
 
-      // ── 3. Sequential allocation pass ─────────────────────────────────────
+      // ── 3. Sequential allocation pass ──────────────────────────────────────
       let remaining = budget.totalBudget;
       let totalAllocated = 0;
 
@@ -108,32 +119,9 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         const id = req._id as mongoose.Types.ObjectId;
         const prevStatus = req.status;
 
-        if (req.requestedAmount <= remaining) {
-          if (REQUIRES_REAPPROVAL.has(prevStatus)) {
-            // Budget now available BUT previously denied — needs admin re-approval.
-            // IMPORTANT: does NOT consume budget (remains uncommitted until admin acts).
-            updates.push({
-              id,
-              status: "pending_reapproval",
-              allocatedAmount: 0,
-              prevStatus,
-              prevAllocated: req.allocatedAmount,
-              requiresReapproval: true,
-            });
-            // Do NOT deduct from remaining — pending_reapproval is not committed
-          } else if (prevStatus === "pending_reapproval") {
-            // Still waiting for admin — budget is available, keep status unchanged
-            updates.push({
-              id,
-              status: "pending_reapproval",
-              allocatedAmount: 0,
-              prevStatus,
-              prevAllocated: req.allocatedAmount,
-              requiresReapproval: false,
-            });
-            // Also does NOT consume budget
-          } else {
-            // pending / approved / under_negotiation → approve normally
+        if (prevStatus === "approved") {
+          // Keep approved if it still fits; otherwise conflict it
+          if (req.requestedAmount <= remaining) {
             updates.push({
               id,
               status: "approved",
@@ -144,21 +132,68 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
             });
             remaining -= req.requestedAmount;
             totalAllocated += req.requestedAmount;
+          } else {
+            // Budget no longer covers this approved request
+            updates.push({
+              id,
+              status: "conflicted",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: false,
+            });
           }
-        } else {
-          // Budget not available — conflicted (pending_reapproval reverts to conflicted)
-          updates.push({
-            id,
-            status: "conflicted",
-            allocatedAmount: 0,
-            prevStatus,
-            prevAllocated: req.allocatedAmount,
-            requiresReapproval: false,
-          });
+        } else if (prevStatus === "conflicted") {
+          // Budget opened up — move to pending_reapproval for admin action
+          if (req.requestedAmount <= remaining) {
+            updates.push({
+              id,
+              status: "pending_reapproval",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: true,
+            });
+            // Does NOT consume budget — admin must approve first
+          } else {
+            updates.push({
+              id,
+              status: "conflicted",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: false,
+            });
+          }
+        } else if (prevStatus === "pending_reapproval") {
+          // Still waiting for admin — check if budget still available
+          if (req.requestedAmount <= remaining) {
+            updates.push({
+              id,
+              status: "pending_reapproval",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: false,
+            });
+            // Does NOT consume budget
+          } else {
+            // Budget shrunk again — revert to conflicted
+            updates.push({
+              id,
+              status: "conflicted",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: false,
+            });
+          }
         }
+        // Admin-workflow statuses (pending/under_review/under_negotiation/critical)
+        // are never processed here — they are untouched by the engine
       }
 
-      // ── 4. Batch-write request updates ────────────────────────────────────
+      // ── 4. Batch-write request updates ─────────────────────────────────────
       if (updates.length > 0) {
         await Promise.all(
           updates.map((u) =>
@@ -171,12 +206,12 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         );
       }
 
-      // ── 5. Update budget pool ─────────────────────────────────────────────
+      // ── 5. Update budget pool ───────────────────────────────────────────────
       budget.allocatedAmount = totalAllocated;
       budget.remainingAmount = budget.totalBudget - totalAllocated;
       await budget.save({ session });
 
-      // ── 6. Audit log ──────────────────────────────────────────────────────
+      // ── 6. Audit log ────────────────────────────────────────────────────────
       const changedRequests = updates.filter(
         (u) => u.status !== u.prevStatus || u.allocatedAmount !== u.prevAllocated
       );
@@ -205,13 +240,13 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
                 newAllocated: u.allocatedAmount,
               })),
             },
-            description: `System recalculation triggered by: ${triggerType}. ${changedRequests.length} request(s) changed. ${reapprovalRequests.length} moved to PENDING_REAPPROVAL (budget available — admin approval required).`,
+            description: `System recalculation triggered by: ${triggerType}. ${changedRequests.length} request(s) changed. ${reapprovalRequests.length} moved to PENDING_REAPPROVAL (budget available — admin approval required). NOTE: Admin-workflow requests (pending/under_review/under_negotiation/critical) were NOT auto-approved.`,
           },
         ],
         { session }
       );
 
-      // ── 7. Emit Socket.io events ──────────────────────────────────────────
+      // ── 7. Emit Socket.io events ────────────────────────────────────────────
       const budgetSnapshot = budget.toObject();
       const io = getIo();
 
@@ -244,7 +279,7 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
           pendingReapproval: updates.filter((u) => u.status === "pending_reapproval").length,
           changed: changedRequests.length,
         },
-        "Recalculation complete"
+        "Recalculation complete — no auto-approvals, admin-workflow statuses preserved"
       );
     });
   } catch (err) {

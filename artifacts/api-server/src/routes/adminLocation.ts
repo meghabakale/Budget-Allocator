@@ -1,4 +1,5 @@
 import { Router } from "express";
+import Budget from "../models/Budget.js";
 import BudgetRequest from "../models/BudgetRequest.js";
 import User from "../models/User.js";
 import AdminAllocation from "../models/AdminAllocation.js";
@@ -11,10 +12,6 @@ import mongoose from "mongoose";
 
 const router = Router();
 
-/**
- * GET /api/location-admin/departments
- * Returns all department heads under this admin's location.
- */
 router.get("/departments", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const location = req.user!.location;
@@ -27,10 +24,6 @@ router.get("/departments", authenticate, requireLocationAdmin, async (req: AuthR
   }
 });
 
-/**
- * GET /api/location-admin/requests
- * Returns all budget requests scoped to this admin's location.
- */
 router.get("/requests", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const location = req.user!.location;
@@ -47,10 +40,6 @@ router.get("/requests", authenticate, requireLocationAdmin, async (req: AuthRequ
   }
 });
 
-/**
- * GET /api/location-admin/summary
- * Returns allocation summary for this admin's location.
- */
 router.get("/summary", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const location = req.user!.location;
@@ -70,10 +59,6 @@ router.get("/summary", authenticate, requireLocationAdmin, async (req: AuthReque
   }
 });
 
-/**
- * POST /api/location-admin/demand
- * Admin submits aggregated budget demand for their location.
- */
 router.post("/demand", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const { demandAmount, note } = req.body;
@@ -95,7 +80,7 @@ router.post("/demand", authenticate, requireLocationAdmin, async (req: AuthReque
       entityType: "AdminAllocation",
       previousState: prev as Record<string, unknown>,
       newState: alloc.toObject() as Record<string, unknown>,
-      description: `${req.user!.location} admin submitted demand of $${demandAmount.toLocaleString()}${note ? `: ${note}` : ""}`,
+      description: `${req.user!.location} admin submitted demand of ₹${demandAmount.toLocaleString("en-IN")}${note ? `: ${note}` : ""}`,
     });
 
     const io = getIo();
@@ -109,12 +94,13 @@ router.post("/demand", authenticate, requireLocationAdmin, async (req: AuthReque
 
 /**
  * POST /api/location-admin/resolve/:id
- * Location admin approves or rejects a request within their location.
+ * Location admin approves, rejects, marks under_review, under_negotiation, or critical.
+ * Budget availability is checked before any approval.
  */
 router.post("/resolve/:id", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const { action, adminNote } = req.body;
+    const { action, adminNote, reason } = req.body;
     const request = await BudgetRequest.findById(id);
     if (!request) { res.status(404).json({ error: "Request not found" }); return; }
 
@@ -125,32 +111,79 @@ router.post("/resolve/:id", authenticate, requireLocationAdmin, async (req: Auth
     }
 
     const prev = request.toObject();
-    if (action === "approve") {
-      request.status = "approved";
-      request.allocatedAmount = request.requestedAmount;
-    } else {
-      request.status = "rejected";
-      request.allocatedAmount = 0;
+    const prevStatus = request.status;
+
+    switch (action) {
+      case "approve": {
+        const budget = await Budget.findOne();
+        if (!budget) { res.status(500).json({ error: "Budget pool not found" }); return; }
+        if (request.requestedAmount > budget.remainingAmount) {
+          res.status(409).json({
+            error: "Insufficient budget to approve this request",
+            requestedAmount: request.requestedAmount,
+            remainingBudget: budget.remainingAmount,
+          });
+          return;
+        }
+        request.status = "approved";
+        request.allocatedAmount = request.requestedAmount;
+        break;
+      }
+      case "reject":
+        request.status = "rejected";
+        request.allocatedAmount = 0;
+        break;
+      case "under_review":
+        request.status = "under_review";
+        request.allocatedAmount = 0;
+        break;
+      case "under_negotiation":
+        request.status = "under_negotiation";
+        request.allocatedAmount = 0;
+        break;
+      case "critical":
+        request.status = "critical";
+        request.allocatedAmount = 0;
+        break;
+      default:
+        res.status(400).json({ error: `Unknown action: ${action}` }); return;
     }
+
     if (adminNote) request.adminNote = adminNote;
     request.version += 1;
     await request.save();
 
+    const actionTypeMap: Record<string, string> = {
+      approve: prevStatus === "pending_reapproval" ? "REAPPROVAL_APPROVED" : "REQUEST_APPROVED",
+      reject: prevStatus === "pending_reapproval" ? "REAPPROVAL_REJECTED" : "REQUEST_REJECTED",
+      under_review: "STATUS_UNDER_REVIEW",
+      under_negotiation: "STATUS_UNDER_NEGOTIATION",
+      critical: "STATUS_MARKED_CRITICAL",
+    };
+
     await logAction({
       userId: req.user!.id as unknown as mongoose.Types.ObjectId,
       username: req.user!.username,
-      actionType: `LOCATION_ADMIN_${action.toUpperCase()}`,
+      actionType: actionTypeMap[action] ?? `LOCATION_ADMIN_${action.toUpperCase()}`,
       entityId: request._id,
       entityType: "BudgetRequest",
-      previousState: prev as Record<string, unknown>,
-      newState: request.toObject() as Record<string, unknown>,
-      description: `${req.user!.location} admin ${action}d request for ${request.departmentName}`,
+      previousState: { ...prev, previousStatus: prevStatus } as Record<string, unknown>,
+      newState: { ...request.toObject(), newStatus: request.status } as Record<string, unknown>,
+      description: `${req.user!.username} (${req.user!.location}) changed ${request.departmentName}: ${prevStatus} → ${request.status}${reason ? ` | Reason: ${reason}` : ""}${adminNote ? ` | Note: ${adminNote}` : ""}`,
     });
 
     const io = getIo();
-    if (io) io.emit("REQUEST_STATUS_CHANGED", request);
+    if (io) {
+      io.emit("REQUEST_STATUS_CHANGED", request);
+      if (request.status === "critical") {
+        io.emit("REQUEST_MARKED_CRITICAL", request);
+      }
+    }
 
-    recalculateSystem("CONFLICT_RESOLVED").catch(() => {});
+    if (action === "approve" || action === "reject") {
+      recalculateSystem("CONFLICT_RESOLVED").catch(() => {});
+    }
+
     res.json(request);
   } catch {
     res.status(500).json({ error: "Failed to resolve request" });

@@ -38,8 +38,9 @@ artifacts/budget-app/src/
 ## Architecture Decisions
 
 - **Weighted allocation formula**: `score = 0.5×priority + 0.3×demand + 0.2×performance` — guarantees non-equal distribution
-- **PENDING_REAPPROVAL status**: cascading recalculation never auto-approves previously-conflicted requests; budget eligibility is flagged but admin must explicitly approve/reject. Emits `REQUEST_REQUIRES_REAPPROVAL` Socket.io event.
-- **Cascading recalculation engine** (cascadeRecalculation.ts): atomic MongoDB transactions, in-process race-condition lock, central Socket.io emission. `pending_reapproval` requests do NOT consume budget — only committed `approved` allocations count.
+- **No auto-approvals — ever**: The cascade engine NEVER auto-approves requests. Only `approved` requests consume budget. `pending`, `under_review`, `under_negotiation`, `critical` are admin-workflow states the engine leaves untouched.
+- **Cascading recalculation engine** (cascadeRecalculation.ts): atomic MongoDB transactions, in-process race-condition lock. Processes only `approved`/`conflicted`/`pending_reapproval`. `approved` → `conflicted` if budget shrinks; `conflicted` → `pending_reapproval` when budget opens; `pending_reapproval` stays or reverts to `conflicted`.
+- **Admin status endpoint**: `PATCH /api/requests/:id/status` — enforces valid transitions, budget check on approval, full audit trail with `previousStatus`/`newStatus`/`changedBy`/`reason`.
 - **Indian Rupee standardization**: All monetary display uses `Intl.NumberFormat("en-IN", { currency: "INR" })` via `src/lib/currency.ts`. Backend stores raw numbers only; formatting is display/export layer only. Exports include `_formatted` field with ₹ value and BOM for Excel compatibility.
 - **esbuild gotcha**: Mongoose pre-save hooks must NOT use `next` parameter (causes runtime errors when bundled)
 - **Backward-compat**: `admin` role still treated as `finance_manager` throughout middleware; no breaking change
@@ -59,13 +60,17 @@ artifacts/budget-app/src/
 | Delhi Marketing | delhi_mkt | password123 |
 | Chennai HR | chennai_hr | password123 |
 
-**Request Status Flow:**
-`pending → conflicted → pending_reapproval → approved / rejected`
+**Request Status Flow (enterprise lifecycle):**
+`pending → under_review → under_negotiation → approved / rejected`
+`pending → critical → approved / rejected`
+`approved → conflicted → pending_reapproval → approved / rejected`
+
+**Status badge colors:** Blue=Pending, Orange=Under Review, Yellow=Under Negotiation, Red=Conflicted, Purple=Critical, Cyan=Pending Re-Approval, Green=Approved, Gray=Rejected
 
 **Features:**
 - Finance Manager Dashboard: weighted allocation, demand vs allocation charts (bar, pie, radar in ₹), per-location override, priority score editor
-- Location Admin Dashboard: local dept view, submit demand, approve/reject local requests + pending re-approvals, allocation score breakdown
-- Allocation Board: Pending Re-Approval column appears dynamically when budget opens up; approve/reject inline
+- Location Admin Dashboard: separate queues (Critical / Re-Approval / Negotiation / Under Review / Pending) with inline status transitions and admin note input
+- Allocation Board: dynamic columns (Critical, Pending Re-Approval appear only when items exist); Review actions inline (Mark Under Review, Negotiate, Approve, Reject)
 - Shared budget pool (₹1Cr), real-time Socket.io updates, conflict arbitration, cascading recalculation, negotiation chat, audit trail, CSV/JSON export (with ₹ formatted fields)
 
 ## Gotchas

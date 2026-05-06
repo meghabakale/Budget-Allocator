@@ -7,7 +7,11 @@ import { formatCurrency, fmtShort, fmtAxis } from "../lib/currency";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { MapPin, Users, IndianRupee, CheckCircle2, XCircle, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import {
+  MapPin, Users, IndianRupee, CheckCircle2, XCircle, AlertTriangle, Loader2,
+  RefreshCw, Eye, MessageCircle, Zap, Clock,
+} from "lucide-react";
+import StatusBadge, { PriorityBadge } from "../components/StatusBadge";
 
 interface Request {
   _id: string;
@@ -39,18 +43,7 @@ interface AllocSummary {
   allocationScore: number;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  approved: "bg-emerald-900/30 text-emerald-300 border-emerald-700/50",
-  rejected: "bg-red-900/30 text-red-300 border-red-700/50",
-  conflicted: "bg-yellow-900/30 text-yellow-300 border-yellow-700/50",
-  pending: "bg-blue-900/30 text-blue-300 border-blue-700/50",
-  under_negotiation: "bg-purple-900/30 text-purple-300 border-purple-700/50",
-  pending_reapproval: "bg-orange-900/30 text-orange-300 border-orange-600/50",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending_reapproval: "Pending Re-Approval",
-};
+type AdminAction = "approve" | "reject" | "under_review" | "under_negotiation" | "critical";
 
 export default function LocationAdminDashboard() {
   const { user } = useAuth();
@@ -63,6 +56,7 @@ export default function LocationAdminDashboard() {
   const [submittingDemand, setSubmittingDemand] = useState(false);
   const [resolving, setResolving] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [noteInputs, setNoteInputs] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -91,10 +85,14 @@ export default function LocationAdminDashboard() {
     socket.on("REQUEST_STATUS_CHANGED", load);
     socket.on("BUDGET_UPDATED", load);
     socket.on("REQUEST_REQUIRES_REAPPROVAL", load);
+    socket.on("REQUEST_MARKED_CRITICAL", load);
+    socket.on("REQUEST_CREATED", load);
     return () => {
       socket.off("REQUEST_STATUS_CHANGED", load);
       socket.off("BUDGET_UPDATED", load);
       socket.off("REQUEST_REQUIRES_REAPPROVAL", load);
+      socket.off("REQUEST_MARKED_CRITICAL", load);
+      socket.off("REQUEST_CREATED", load);
     };
   }, [socket, load]);
 
@@ -119,12 +117,21 @@ export default function LocationAdminDashboard() {
     }
   };
 
-  const handleResolve = async (id: string, action: "approve" | "reject") => {
+  const handleAction = async (id: string, action: AdminAction) => {
     setResolving(id + action);
     try {
-      await api.locationAdmin.resolve(id, action);
+      const adminNote = noteInputs[id] || undefined;
+      await api.locationAdmin.resolve(id, action, adminNote);
+      setNoteInputs((prev) => { const n = { ...prev }; delete n[id]; return n; });
       await load();
-      showToast(`Request ${action}d`, true);
+      const labels: Record<AdminAction, string> = {
+        approve: "Request approved",
+        reject: "Request rejected",
+        under_review: "Marked as Under Review",
+        under_negotiation: "Moved to Negotiation",
+        critical: "Marked as Critical",
+      };
+      showToast(labels[action], true);
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Action failed", false);
     } finally {
@@ -139,8 +146,15 @@ export default function LocationAdminDashboard() {
     { name: "Remaining", value: summary?.remainingBudget ?? 0, fill: "#6b7280" },
   ];
 
+  // Categorize requests into queues
+  const criticalRequests = requests.filter((r) => r.status === "critical");
   const pendingReapproval = requests.filter((r) => r.status === "pending_reapproval");
-  const otherRequests = requests.filter((r) => r.status !== "pending_reapproval");
+  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const negotiationRequests = requests.filter((r) => r.status === "under_negotiation");
+  const underReviewRequests = requests.filter((r) => r.status === "under_review");
+  const otherRequests = requests.filter((r) =>
+    !["critical", "pending_reapproval", "pending", "under_negotiation", "under_review"].includes(r.status)
+  );
 
   if (loading) {
     return (
@@ -151,6 +165,122 @@ export default function LocationAdminDashboard() {
       </Layout>
     );
   }
+
+  const ActionButtons = ({ r, showReviewBtn = false }: { r: Request; showReviewBtn?: boolean }) => (
+    <div className="space-y-2 shrink-0">
+      {noteInputs[r._id] !== undefined && (
+        <input
+          type="text"
+          placeholder="Admin note (optional)"
+          value={noteInputs[r._id]}
+          onChange={(e) => setNoteInputs((p) => ({ ...p, [r._id]: e.target.value }))}
+          className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
+        />
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        {showReviewBtn && r.status === "pending" && (
+          <button
+            onClick={() => handleAction(r._id, "under_review")}
+            disabled={!!resolving}
+            className="flex items-center gap-1 px-2 py-1 bg-orange-800/60 hover:bg-orange-700/70 disabled:opacity-50 text-orange-200 text-xs rounded transition-colors"
+          >
+            <Eye size={10} /> Review
+          </button>
+        )}
+        {(r.status === "pending" || r.status === "under_review") && (
+          <button
+            onClick={() => handleAction(r._id, "under_negotiation")}
+            disabled={!!resolving}
+            className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 hover:bg-yellow-800/60 disabled:opacity-50 text-yellow-200 text-xs rounded transition-colors"
+          >
+            <MessageCircle size={10} /> Negotiate
+          </button>
+        )}
+        {(r.status === "pending" || r.status === "under_review") && (
+          <button
+            onClick={() => handleAction(r._id, "critical")}
+            disabled={!!resolving}
+            className="flex items-center gap-1 px-2 py-1 bg-purple-900/50 hover:bg-purple-800/60 disabled:opacity-50 text-purple-200 text-xs rounded transition-colors"
+          >
+            <Zap size={10} /> Critical
+          </button>
+        )}
+        <button
+          onClick={() => {
+            if (noteInputs[r._id] === undefined) {
+              setNoteInputs((p) => ({ ...p, [r._id]: "" }));
+            } else {
+              handleAction(r._id, "approve");
+            }
+          }}
+          disabled={resolving === r._id + "approve"}
+          className="flex items-center gap-1 px-2 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
+        >
+          {resolving === r._id + "approve" ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
+          {noteInputs[r._id] !== undefined ? "Confirm Approve" : "Approve"}
+        </button>
+        <button
+          onClick={() => handleAction(r._id, "reject")}
+          disabled={resolving === r._id + "reject"}
+          className="flex items-center gap-1 px-2 py-1 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded transition-colors"
+        >
+          {resolving === r._id + "reject" ? <Loader2 size={10} className="animate-spin" /> : <XCircle size={10} />}
+          Reject
+        </button>
+      </div>
+    </div>
+  );
+
+  const RequestRow = ({ r, showReviewBtn = false }: { r: Request; showReviewBtn?: boolean }) => (
+    <div className="p-4 hover:bg-gray-800/20 transition-colors">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className="text-sm font-medium text-white truncate">{r.departmentName}</span>
+            <PriorityBadge priority={r.priorityLevel} />
+            <StatusBadge status={r.status} />
+          </div>
+          <p className="text-xs text-gray-400 truncate">{r.justification}</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Requested: <span className="text-white font-medium">{formatCurrency(r.requestedAmount)}</span>
+            {r.allocatedAmount > 0 && (
+              <> · Allocated: <span className="text-emerald-400 font-medium">{formatCurrency(r.allocatedAmount)}</span></>
+            )}
+          </p>
+          {r.adminNote && (
+            <p className="text-xs text-amber-400/80 mt-0.5 italic">Note: {r.adminNote}</p>
+          )}
+        </div>
+        <ActionButtons r={r} showReviewBtn={showReviewBtn} />
+      </div>
+    </div>
+  );
+
+  const QueueSection = ({
+    title, icon, requests: items, color, showReviewBtn = false,
+  }: {
+    title: string;
+    icon: React.ReactNode;
+    requests: Request[];
+    color: string;
+    showReviewBtn?: boolean;
+  }) => {
+    if (items.length === 0) return null;
+    return (
+      <div className={`bg-gray-900 border ${color} rounded-xl overflow-hidden`}>
+        <div className="p-4 border-b border-gray-800/60 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            {icon}
+            {title}
+          </h3>
+          <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">{items.length}</span>
+        </div>
+        <div className="divide-y divide-gray-800/50">
+          {items.map((r) => <RequestRow key={r._id} r={r} showReviewBtn={showReviewBtn} />)}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Layout>
@@ -172,7 +302,6 @@ export default function LocationAdminDashboard() {
               Manage departments and budget requests for {user?.location}
             </p>
           </div>
-
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -206,7 +335,7 @@ export default function LocationAdminDashboard() {
           </div>
         )}
 
-        {/* Allocation scores + chart */}
+        {/* Chart + scores */}
         {summary && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -221,91 +350,74 @@ export default function LocationAdminDashboard() {
                     contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
                   />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {barData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
-                    ))}
+                    {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
               <h3 className="text-sm font-semibold text-white">Allocation Scores</h3>
-              <div className="space-y-3">
-                {[
-                  { label: "Priority Score", value: `${summary.priorityScore}/10`, pct: summary.priorityScore / 10, color: "bg-blue-500" },
-                  { label: "Performance Score", value: `${(summary.performanceScore * 100).toFixed(0)}%`, pct: summary.performanceScore, color: "bg-emerald-500" },
-                  { label: "Weighted Score", value: summary.allocationScore.toFixed(3), pct: summary.allocationScore, color: "bg-purple-500" },
-                ].map((s) => (
-                  <div key={s.label}>
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
-                      <span>{s.label}</span><span className="text-white font-medium">{s.value}</span>
-                    </div>
-                    <div className="w-full bg-gray-800 rounded-full h-1.5">
-                      <div className={`${s.color} h-1.5 rounded-full transition-all`} style={{ width: `${(s.pct * 100).toFixed(0)}%` }} />
-                    </div>
+              {[
+                { label: "Priority Score", value: `${summary.priorityScore}/10`, pct: summary.priorityScore / 10, color: "bg-blue-500" },
+                { label: "Performance Score", value: `${(summary.performanceScore * 100).toFixed(0)}%`, pct: summary.performanceScore, color: "bg-emerald-500" },
+                { label: "Weighted Score", value: summary.allocationScore.toFixed(3), pct: summary.allocationScore, color: "bg-purple-500" },
+              ].map((s) => (
+                <div key={s.label}>
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>{s.label}</span><span className="text-white font-medium">{s.value}</span>
                   </div>
-                ))}
-              </div>
+                  <div className="w-full bg-gray-800 rounded-full h-1.5">
+                    <div className={`${s.color} h-1.5 rounded-full transition-all`} style={{ width: `${(s.pct * 100).toFixed(0)}%` }} />
+                  </div>
+                </div>
+              ))}
               <p className="text-xs text-gray-600 pt-2">Score = 50%×Priority + 30%×Demand + 20%×Performance</p>
             </div>
           </div>
         )}
 
-        {/* Pending Re-Approval section */}
-        {pendingReapproval.length > 0 && (
-          <div className="bg-gray-900 border border-orange-700/50 rounded-xl overflow-hidden">
-            <div className="p-4 border-b border-orange-800/40 flex items-center justify-between bg-orange-950/20">
-              <h3 className="text-sm font-semibold text-orange-300 flex items-center gap-2">
-                <RefreshCw size={14} />
-                Pending Re-Approval ({pendingReapproval.length})
-              </h3>
-              <span className="text-xs text-orange-400/80">Budget now available — your approval required</span>
-            </div>
-            <div className="divide-y divide-orange-900/30">
-              {pendingReapproval.map((r) => (
-                <div key={r._id} className="p-4 hover:bg-orange-950/10 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-white truncate">{r.departmentName}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                          r.priorityLevel === "High" ? "bg-red-900/30 text-red-300 border-red-700/50" :
-                          r.priorityLevel === "Medium" ? "bg-amber-900/30 text-amber-300 border-amber-700/50" :
-                          "bg-gray-800 text-gray-400 border-gray-700"
-                        }`}>{r.priorityLevel}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLES["pending_reapproval"]}`}>
-                          Pending Re-Approval
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-400 truncate">{r.justification}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Requested: <span className="text-white font-medium">{formatCurrency(r.requestedAmount)}</span>
-                        <span className="ml-2 text-orange-400">· Budget available — awaiting your decision</span>
-                      </p>
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={() => handleResolve(r._id, "approve")}
-                        disabled={resolving === r._id + "approve"}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded-lg transition-colors">
-                        {resolving === r._id + "approve" ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleResolve(r._id, "reject")}
-                        disabled={resolving === r._id + "reject"}
-                        className="flex items-center gap-1 px-3 py-1.5 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors">
-                        {resolving === r._id + "reject" ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* ── Admin Action Queues ── */}
+
+        {/* 1. Critical */}
+        <QueueSection
+          title="Critical Requests — Urgent Action Required"
+          icon={<Zap size={14} className="text-purple-400" />}
+          requests={criticalRequests}
+          color="border-purple-700/50"
+        />
+
+        {/* 2. Pending Re-Approval */}
+        <QueueSection
+          title="Re-Approval Queue — Budget Now Available"
+          icon={<RefreshCw size={14} className="text-cyan-400" />}
+          requests={pendingReapproval}
+          color="border-cyan-700/50"
+        />
+
+        {/* 3. Negotiation Queue */}
+        <QueueSection
+          title="Negotiation Queue"
+          icon={<MessageCircle size={14} className="text-yellow-400" />}
+          requests={negotiationRequests}
+          color="border-yellow-700/50"
+        />
+
+        {/* 4. Under Review */}
+        <QueueSection
+          title="Under Review"
+          icon={<Eye size={14} className="text-orange-400" />}
+          requests={underReviewRequests}
+          color="border-orange-700/50"
+        />
+
+        {/* 5. Pending Requests */}
+        <QueueSection
+          title="Pending Requests — Awaiting Admin Review"
+          icon={<Clock size={14} className="text-blue-400" />}
+          requests={pendingRequests}
+          color="border-blue-700/50"
+          showReviewBtn
+        />
 
         {/* Departments */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -328,67 +440,38 @@ export default function LocationAdminDashboard() {
           )}
         </div>
 
-        {/* All Other Requests */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="p-5 border-b border-gray-800 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-              <AlertTriangle size={16} className="text-amber-400" />
-              All Budget Requests — {user?.location}
-            </h3>
-            <span className="text-xs text-gray-500">{otherRequests.length} requests</span>
-          </div>
-
-          {otherRequests.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 text-sm">No requests for this location yet.</div>
-          ) : (
+        {/* Other requests (approved/rejected) */}
+        {otherRequests.length > 0 && (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <div className="p-5 border-b border-gray-800 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <AlertTriangle size={16} className="text-amber-400" />
+                Resolved Requests — {user?.location}
+              </h3>
+              <span className="text-xs text-gray-500">{otherRequests.length} requests</span>
+            </div>
             <div className="divide-y divide-gray-800/50">
               {otherRequests.map((r) => (
                 <div key={r._id} className="p-4 hover:bg-gray-800/20 transition-colors">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-white truncate">{r.departmentName}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                          r.priorityLevel === "High" ? "bg-red-900/30 text-red-300 border-red-700/50" :
-                          r.priorityLevel === "Medium" ? "bg-amber-900/30 text-amber-300 border-amber-700/50" :
-                          "bg-gray-800 text-gray-400 border-gray-700"
-                        }`}>{r.priorityLevel}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLES[r.status] ?? "bg-gray-800 text-gray-400 border-gray-700"}`}>
-                          {STATUS_LABELS[r.status] ?? r.status.replace(/_/g, " ")}
-                        </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-white">{r.departmentName}</span>
+                        <PriorityBadge priority={r.priorityLevel} />
+                        <StatusBadge status={r.status} />
                       </div>
-                      <p className="text-xs text-gray-400 truncate">{r.justification}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Requested: <span className="text-white">{formatCurrency(r.requestedAmount)}</span>
-                        {r.allocatedAmount > 0 && (
-                          <> · Allocated: <span className="text-emerald-400">{formatCurrency(r.allocatedAmount)}</span></>
-                        )}
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {formatCurrency(r.requestedAmount)} requested
+                        {r.allocatedAmount > 0 && <> · <span className="text-emerald-400">{formatCurrency(r.allocatedAmount)}</span> allocated</>}
                       </p>
+                      {r.adminNote && <p className="text-xs text-amber-400/70 mt-0.5 italic">{r.adminNote}</p>}
                     </div>
-                    {(r.status === "pending" || r.status === "conflicted") && (
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          onClick={() => handleResolve(r._id, "approve")}
-                          disabled={resolving === r._id + "approve"}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded-lg transition-colors">
-                          {resolving === r._id + "approve" ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleResolve(r._id, "reject")}
-                          disabled={resolving === r._id + "reject"}
-                          className="flex items-center gap-1 px-3 py-1.5 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors">
-                          {resolving === r._id + "reject" ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
-                          Reject
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import mongoose from "mongoose";
+import Budget from "../models/Budget.js";
 import BudgetRequest from "../models/BudgetRequest.js";
 import { authenticate, type AuthRequest } from "../middleware/auth.js";
 import { requireLocationAdmin } from "../middleware/roleAuth.js";
@@ -12,6 +13,7 @@ const router = Router();
 /**
  * Any admin (location or finance) can resolve a conflict or approve a pending_reapproval.
  * Location admins can only act within their own location.
+ * On approval: budget availability is checked before committing.
  */
 router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
@@ -33,18 +35,43 @@ router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequ
     const prevStatus = request.status;
 
     switch (action) {
-      case "approve":
+      case "approve": {
+        // Budget check before approving
+        const budget = await Budget.findOne();
+        if (!budget) { res.status(500).json({ error: "Budget pool not found" }); return; }
+        const effectiveAmount = allocatedAmount ?? request.requestedAmount;
+        if (effectiveAmount > budget.remainingAmount) {
+          res.status(409).json({
+            error: "Insufficient budget to approve this request",
+            requestedAmount: effectiveAmount,
+            remainingBudget: budget.remainingAmount,
+          });
+          return;
+        }
         request.status = "approved";
-        request.allocatedAmount = allocatedAmount ?? request.requestedAmount;
+        request.allocatedAmount = effectiveAmount;
         break;
+      }
       case "reject":
         request.status = "rejected";
         request.allocatedAmount = 0;
         break;
-      case "adjust":
+      case "adjust": {
+        const budget = await Budget.findOne();
+        if (!budget) { res.status(500).json({ error: "Budget pool not found" }); return; }
+        const adjustedAmount = Number(allocatedAmount);
+        if (adjustedAmount > budget.remainingAmount) {
+          res.status(409).json({
+            error: "Insufficient budget for adjusted amount",
+            requestedAmount: adjustedAmount,
+            remainingBudget: budget.remainingAmount,
+          });
+          return;
+        }
         request.status = "approved";
-        request.allocatedAmount = Number(allocatedAmount);
+        request.allocatedAmount = adjustedAmount;
         break;
+      }
       default:
         res.status(400).json({ error: `Unknown action: ${action}` }); return;
     }
@@ -65,8 +92,8 @@ router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequ
       actionType: actionTypeMap[action] ?? `CONFLICT_${action.toUpperCase()}`,
       entityId: request._id,
       entityType: "BudgetRequest",
-      previousState: prev as Record<string, unknown>,
-      newState: request.toObject() as Record<string, unknown>,
+      previousState: { ...prev, previousStatus: prevStatus } as Record<string, unknown>,
+      newState: { ...request.toObject(), newStatus: request.status } as Record<string, unknown>,
       description: `${req.user!.username} ${action}d ${prevStatus === "pending_reapproval" ? "re-approval" : "conflict"} for ${request.departmentName} — allocated ₹${request.allocatedAmount.toLocaleString("en-IN")}${adminNote ? ` (note: ${adminNote})` : ""}`,
     });
 
@@ -108,8 +135,8 @@ router.post("/rollback/:id", authenticate, requireLocationAdmin, async (req: Aut
       actionType: "REQUEST_ROLLBACK",
       entityId: request._id,
       entityType: "BudgetRequest",
-      previousState: prev as Record<string, unknown>,
-      newState: request.toObject() as Record<string, unknown>,
+      previousState: { ...prev, previousStatus: prev.status } as Record<string, unknown>,
+      newState: { ...request.toObject(), newStatus: "pending" } as Record<string, unknown>,
       description: `${req.user!.username} rolled back ${request.departmentName} to pending (was: ${prev.status})`,
     });
 
