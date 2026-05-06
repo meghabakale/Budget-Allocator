@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.js";
-import { requireRole } from "../middleware/roleAuth.js";
+import { requireLocationAdmin } from "../middleware/roleAuth.js";
 import { exportBudget, exportRequests, exportAudit } from "../services/exportService.js";
 
 const router = Router();
 
-router.get("/budget", authenticate, requireRole("admin"), async (req, res) => {
+router.get("/budget", authenticate, requireLocationAdmin, async (req, res) => {
   const format = (req.query["format"] as string) || "json";
   const { data, contentType } = await exportBudget(format);
   res.setHeader("Content-Type", contentType);
@@ -13,7 +13,7 @@ router.get("/budget", authenticate, requireRole("admin"), async (req, res) => {
   res.send(data);
 });
 
-router.get("/requests", authenticate, requireRole("admin"), async (req, res) => {
+router.get("/requests", authenticate, requireLocationAdmin, async (req, res) => {
   const format = (req.query["format"] as string) || "json";
   const { data, contentType } = await exportRequests(format);
   res.setHeader("Content-Type", contentType);
@@ -21,7 +21,7 @@ router.get("/requests", authenticate, requireRole("admin"), async (req, res) => 
   res.send(data);
 });
 
-router.get("/audit", authenticate, requireRole("admin"), async (req, res) => {
+router.get("/audit", authenticate, requireLocationAdmin, async (req, res) => {
   const format = (req.query["format"] as string) || "json";
   const { data, contentType } = await exportAudit(format);
   res.setHeader("Content-Type", contentType);

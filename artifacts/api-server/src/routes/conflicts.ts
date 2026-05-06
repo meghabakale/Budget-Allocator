@@ -2,7 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import BudgetRequest from "../models/BudgetRequest.js";
 import { authenticate, type AuthRequest } from "../middleware/auth.js";
-import { requireRole } from "../middleware/roleAuth.js";
+import { requireLocationAdmin } from "../middleware/roleAuth.js";
 import { logAction } from "../services/auditService.js";
 import { recalculateSystem } from "../services/cascadeRecalculation.js";
 import { getIo } from "../sockets/index.js";
@@ -10,16 +10,24 @@ import { getIo } from "../sockets/index.js";
 const router = Router();
 
 /**
- * Admin resolves a conflict: approve / reject / adjust
- * After the decision is recorded, the recalculation engine re-runs
- * to enforce consistency across all remaining requests.
+ * Any admin (location or finance) can resolve a conflict.
+ * Location admins can only resolve conflicts within their own location.
  */
-router.post("/resolve", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const { requestId, action, allocatedAmount, adminNote } = req.body;
 
     const request = await BudgetRequest.findById(requestId);
     if (!request) { res.status(404).json({ error: "Request not found" }); return; }
+
+    // Location admins can only manage their own location's requests
+    const isGlobal = ["finance_manager", "admin"].includes(req.user!.role);
+    if (!isGlobal && req.user!.role === "location_admin") {
+      const inLocation = request.departmentName.includes(`(${req.user!.location})`);
+      if (!inLocation) {
+        res.status(403).json({ error: "Cannot resolve conflicts outside your location" }); return;
+      }
+    }
 
     const prev = request.toObject();
 
@@ -52,10 +60,9 @@ router.post("/resolve", authenticate, requireRole("admin"), async (req: AuthRequ
       entityType: "BudgetRequest",
       previousState: prev as Record<string, unknown>,
       newState: request.toObject() as Record<string, unknown>,
-      description: `Admin ${action}d conflict for ${request.departmentName} — allocated $${request.allocatedAmount}${adminNote ? ` (note: ${adminNote})` : ""}`,
+      description: `${req.user!.username} ${action}d conflict for ${request.departmentName} — allocated $${request.allocatedAmount}${adminNote ? ` (note: ${adminNote})` : ""}`,
     });
 
-    // Notify immediately, then let engine enforce full consistency
     const io = getIo();
     if (io) io.emit("REQUEST_STATUS_CHANGED", request);
 
@@ -68,14 +75,21 @@ router.post("/resolve", authenticate, requireRole("admin"), async (req: AuthRequ
 });
 
 /**
- * Admin rolls back a request to pending status.
- * The recalculation engine re-evaluates everything afterward.
+ * Any admin can rollback a request to pending for re-evaluation.
  */
-router.post("/rollback/:id", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+router.post("/rollback/:id", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const request = await BudgetRequest.findById(id);
     if (!request) { res.status(404).json({ error: "Request not found" }); return; }
+
+    const isGlobal = ["finance_manager", "admin"].includes(req.user!.role);
+    if (!isGlobal && req.user!.role === "location_admin") {
+      const inLocation = request.departmentName.includes(`(${req.user!.location})`);
+      if (!inLocation) {
+        res.status(403).json({ error: "Cannot rollback requests outside your location" }); return;
+      }
+    }
 
     const prev = request.toObject();
     request.status = "pending";
@@ -92,7 +106,7 @@ router.post("/rollback/:id", authenticate, requireRole("admin"), async (req: Aut
       entityType: "BudgetRequest",
       previousState: prev as Record<string, unknown>,
       newState: request.toObject() as Record<string, unknown>,
-      description: `Request for ${request.departmentName} rolled back to pending by admin (was: ${prev.status}, allocated: $${prev.allocatedAmount})`,
+      description: `${req.user!.username} rolled back ${request.departmentName} to pending (was: ${prev.status}, allocated: $${prev.allocatedAmount})`,
     });
 
     const io = getIo();

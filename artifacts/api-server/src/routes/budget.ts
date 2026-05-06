@@ -2,7 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import Budget from "../models/Budget.js";
 import { authenticate, type AuthRequest } from "../middleware/auth.js";
-import { requireRole } from "../middleware/roleAuth.js";
+import { requireFinanceManager } from "../middleware/roleAuth.js";
 import { logAction } from "../services/auditService.js";
 import { recalculateSystem } from "../services/cascadeRecalculation.js";
 
@@ -24,7 +24,8 @@ router.get("/", authenticate, async (_req, res) => {
   }
 });
 
-router.put("/update", authenticate, requireRole("admin"), async (req: AuthRequest, res) => {
+// Only Finance Manager (or legacy admin) can change the global budget pool
+router.put("/update", authenticate, requireFinanceManager, async (req: AuthRequest, res) => {
   try {
     const { totalBudget } = req.body;
 
@@ -37,7 +38,6 @@ router.put("/update", authenticate, requireRole("admin"), async (req: AuthReques
 
     const prev = budget.toObject();
     budget.totalBudget = totalBudget;
-    // remainingAmount will be corrected by recalculation engine
     await budget.save();
 
     await logAction({
@@ -48,11 +48,9 @@ router.put("/update", authenticate, requireRole("admin"), async (req: AuthReques
       entityType: "Budget",
       previousState: prev as Record<string, unknown>,
       newState: budget.toObject() as Record<string, unknown>,
-      description: `Total budget changed from $${prev.totalBudget.toLocaleString()} to $${totalBudget.toLocaleString()} by admin`,
+      description: `Total budget changed from $${prev.totalBudget.toLocaleString()} to $${totalBudget.toLocaleString()} by ${req.user!.username}`,
     });
 
-    // Run full recalculation — this will re-evaluate all requests under the new budget cap
-    // and emit BUDGET_UPDATED + REQUEST_STATUS_CHANGED via Socket.io
     await recalculateSystem("BUDGET_UPDATED");
 
     const updated = await Budget.findOne();

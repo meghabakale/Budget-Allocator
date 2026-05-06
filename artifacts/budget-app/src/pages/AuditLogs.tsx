@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../services/api";
 import Layout from "../components/Layout";
-import { ClipboardList, Download, Search } from "lucide-react";
+import { ClipboardList, Download, Search, AlertTriangle } from "lucide-react";
 
 interface AuditLog {
   _id: string;
@@ -24,15 +24,30 @@ const ACTION_COLORS: Record<string, string> = {
   CONFLICT_APPROVE: "text-green-300",
   CONFLICT_REJECT: "text-red-300",
   CONFLICT_ADJUST: "text-orange-300",
+  RECALCULATION: "text-indigo-400",
+  FINANCE_WEIGHTED_ALLOCATION: "text-purple-300",
+  FINANCE_OVERRIDE_ALLOCATION: "text-violet-400",
+  ADMIN_DEMAND_SUBMITTED: "text-cyan-400",
+  LOCATION_ADMIN_APPROVE: "text-emerald-400",
+  LOCATION_ADMIN_REJECT: "text-red-400",
 };
 
 export default function AuditLogs() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [filter, setFilter] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const data = await api.audit.list();
-    setLogs(data as unknown as AuditLog[]);
+    setError(null);
+    try {
+      const data = await api.audit.list();
+      setLogs(data as unknown as AuditLog[]);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load audit logs");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -40,9 +55,9 @@ export default function AuditLogs() {
   const filtered = logs.filter(
     (l) =>
       !filter ||
-      l.username.toLowerCase().includes(filter.toLowerCase()) ||
-      l.actionType.toLowerCase().includes(filter.toLowerCase()) ||
-      l.description.toLowerCase().includes(filter.toLowerCase())
+      l.username?.toLowerCase().includes(filter.toLowerCase()) ||
+      l.actionType?.toLowerCase().includes(filter.toLowerCase()) ||
+      l.description?.toLowerCase().includes(filter.toLowerCase())
   );
 
   return (
@@ -50,7 +65,10 @@ export default function AuditLogs() {
       <div className="p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Audit Logs</h1>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+              <ClipboardList size={22} className="text-blue-400" />
+              Audit Logs
+            </h1>
             <p className="text-gray-400 text-sm mt-0.5">Complete history of all system actions</p>
           </div>
           <div className="flex gap-2">
@@ -66,6 +84,22 @@ export default function AuditLogs() {
           </div>
         </div>
 
+        {error && (
+          <div className="flex items-center gap-3 p-4 bg-red-900/20 border border-red-700/50 rounded-xl">
+            <AlertTriangle size={16} className="text-red-400 shrink-0" />
+            <div>
+              <p className="text-sm text-red-300 font-medium">Failed to load audit logs</p>
+              <p className="text-xs text-red-400 mt-0.5">{error}</p>
+            </div>
+            <button
+              onClick={load}
+              className="ml-auto text-xs bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="relative">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <input
@@ -78,51 +112,64 @@ export default function AuditLogs() {
         </div>
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="text-left text-xs text-gray-500 px-4 py-3">Time</th>
-                <th className="text-left text-xs text-gray-500 px-4 py-3">User</th>
-                <th className="text-left text-xs text-gray-500 px-4 py-3">Action</th>
-                <th className="text-left text-xs text-gray-500 px-4 py-3">Entity</th>
-                <th className="text-left text-xs text-gray-500 px-4 py-3">Description</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {filtered.map((log) => (
-                <tr key={log._id} className="hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium text-blue-400">{log.username}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-mono font-medium ${ACTION_COLORS[log.actionType] || "text-gray-400"}`}>
-                      {log.actionType}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-gray-400">{log.entityType}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-gray-300">{log.description}</span>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center">
-                    <ClipboardList size={24} className="mx-auto mb-2 text-gray-700" />
-                    <p className="text-sm text-gray-500">No audit logs found</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {loading ? (
+            <div className="p-10 text-center">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-sm text-gray-500">Loading audit logs...</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left text-xs text-gray-500 px-4 py-3 whitespace-nowrap">Time</th>
+                    <th className="text-left text-xs text-gray-500 px-4 py-3">User</th>
+                    <th className="text-left text-xs text-gray-500 px-4 py-3">Action</th>
+                    <th className="text-left text-xs text-gray-500 px-4 py-3">Entity</th>
+                    <th className="text-left text-xs text-gray-500 px-4 py-3">Description</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {filtered.map((log) => (
+                    <tr key={log._id} className="hover:bg-gray-800/30 transition-colors">
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-medium text-blue-400">{log.username}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-mono font-medium ${ACTION_COLORS[log.actionType] ?? "text-gray-400"}`}>
+                          {log.actionType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-400">{log.entityType}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-gray-300">{log.description}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 && !error && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center">
+                        <ClipboardList size={24} className="mx-auto mb-2 text-gray-700" />
+                        <p className="text-sm text-gray-500">
+                          {filter ? "No logs match your search" : "No audit logs yet"}
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        <p className="text-xs text-gray-600 text-center">{filtered.length} of {logs.length} entries</p>
+        {!loading && !error && (
+          <p className="text-xs text-gray-600 text-center">{filtered.length} of {logs.length} entries shown</p>
+        )}
       </div>
     </Layout>
   );
