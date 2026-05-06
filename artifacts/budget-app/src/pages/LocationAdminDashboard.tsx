@@ -13,6 +13,13 @@ import {
 } from "lucide-react";
 import StatusBadge, { PriorityBadge } from "../components/StatusBadge";
 
+interface RequestedBy {
+  _id: string;
+  username: string;
+  email: string;
+  location: string;
+}
+
 interface Request {
   _id: string;
   departmentName: string;
@@ -22,6 +29,7 @@ interface Request {
   status: string;
   justification: string;
   adminNote?: string;
+  requestedBy?: RequestedBy | string;
 }
 
 interface DeptUser {
@@ -166,95 +174,119 @@ export default function LocationAdminDashboard() {
     );
   }
 
-  const ActionButtons = ({ r, showReviewBtn = false }: { r: Request; showReviewBtn?: boolean }) => (
-    <div className="space-y-2 shrink-0">
-      {noteInputs[r._id] !== undefined && (
-        <input
-          type="text"
-          placeholder="Admin note (optional)"
-          value={noteInputs[r._id]}
-          onChange={(e) => setNoteInputs((p) => ({ ...p, [r._id]: e.target.value }))}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
-        />
-      )}
-      <div className="flex flex-wrap gap-1.5">
-        {showReviewBtn && r.status === "pending" && (
-          <button
-            onClick={() => handleAction(r._id, "under_review")}
-            disabled={!!resolving}
-            className="flex items-center gap-1 px-2 py-1 bg-orange-800/60 hover:bg-orange-700/70 disabled:opacity-50 text-orange-200 text-xs rounded transition-colors"
-          >
-            <Eye size={10} /> Review
-          </button>
-        )}
-        {(r.status === "pending" || r.status === "under_review") && (
-          <button
-            onClick={() => handleAction(r._id, "under_negotiation")}
-            disabled={!!resolving}
-            className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 hover:bg-yellow-800/60 disabled:opacity-50 text-yellow-200 text-xs rounded transition-colors"
-          >
-            <MessageCircle size={10} /> Negotiate
-          </button>
-        )}
-        {(r.status === "pending" || r.status === "under_review") && (
-          <button
-            onClick={() => handleAction(r._id, "critical")}
-            disabled={!!resolving}
-            className="flex items-center gap-1 px-2 py-1 bg-purple-900/50 hover:bg-purple-800/60 disabled:opacity-50 text-purple-200 text-xs rounded transition-colors"
-          >
-            <Zap size={10} /> Critical
-          </button>
-        )}
-        <button
-          onClick={() => {
-            if (noteInputs[r._id] === undefined) {
-              setNoteInputs((p) => ({ ...p, [r._id]: "" }));
-            } else {
-              handleAction(r._id, "approve");
-            }
-          }}
-          disabled={resolving === r._id + "approve"}
-          className="flex items-center gap-1 px-2 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
-        >
-          {resolving === r._id + "approve" ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
-          {noteInputs[r._id] !== undefined ? "Confirm Approve" : "Approve"}
-        </button>
-        <button
-          onClick={() => handleAction(r._id, "reject")}
-          disabled={resolving === r._id + "reject"}
-          className="flex items-center gap-1 px-2 py-1 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded transition-colors"
-        >
-          {resolving === r._id + "reject" ? <Loader2 size={10} className="animate-spin" /> : <XCircle size={10} />}
-          Reject
-        </button>
-      </div>
-    </div>
-  );
+  const isOwnRequest = (r: Request): boolean => {
+    if (!r.requestedBy || !user?.id) return false;
+    const byId = typeof r.requestedBy === "string" ? r.requestedBy : r.requestedBy._id;
+    return byId === user.id;
+  };
 
-  const RequestRow = ({ r, showReviewBtn = false }: { r: Request; showReviewBtn?: boolean }) => (
-    <div className="p-4 hover:bg-gray-800/20 transition-colors">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="text-sm font-medium text-white truncate">{r.departmentName}</span>
-            <PriorityBadge priority={r.priorityLevel} />
-            <StatusBadge status={r.status} />
-          </div>
-          <p className="text-xs text-gray-400 truncate">{r.justification}</p>
-          <p className="text-xs text-gray-500 mt-1">
-            Requested: <span className="text-white font-medium">{formatCurrency(r.requestedAmount)}</span>
-            {r.allocatedAmount > 0 && (
-              <> · Allocated: <span className="text-emerald-400 font-medium">{formatCurrency(r.allocatedAmount)}</span></>
-            )}
-          </p>
-          {r.adminNote && (
-            <p className="text-xs text-amber-400/80 mt-0.5 italic">Note: {r.adminNote}</p>
-          )}
+  const ActionButtons = ({ r, showReviewBtn = false }: { r: Request; showReviewBtn?: boolean }) => {
+    if (isOwnRequest(r)) {
+      return (
+        <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-purple-900/20 border border-purple-700/40 rounded-lg">
+          <Clock size={11} className="text-purple-400" />
+          <span className="text-xs text-purple-300 whitespace-nowrap">Awaiting Finance Manager Review</span>
         </div>
-        <ActionButtons r={r} showReviewBtn={showReviewBtn} />
+      );
+    }
+    return (
+      <div className="space-y-2 shrink-0">
+        {noteInputs[r._id] !== undefined && (
+          <input
+            type="text"
+            placeholder="Admin note (optional)"
+            value={noteInputs[r._id]}
+            onChange={(e) => setNoteInputs((p) => ({ ...p, [r._id]: e.target.value }))}
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
+          />
+        )}
+        <div className="flex flex-wrap gap-1.5">
+          {showReviewBtn && r.status === "pending" && (
+            <button
+              onClick={() => handleAction(r._id, "under_review")}
+              disabled={!!resolving}
+              className="flex items-center gap-1 px-2 py-1 bg-orange-800/60 hover:bg-orange-700/70 disabled:opacity-50 text-orange-200 text-xs rounded transition-colors"
+            >
+              <Eye size={10} /> Review
+            </button>
+          )}
+          {(r.status === "pending" || r.status === "under_review") && (
+            <button
+              onClick={() => handleAction(r._id, "under_negotiation")}
+              disabled={!!resolving}
+              className="flex items-center gap-1 px-2 py-1 bg-yellow-900/50 hover:bg-yellow-800/60 disabled:opacity-50 text-yellow-200 text-xs rounded transition-colors"
+            >
+              <MessageCircle size={10} /> Negotiate
+            </button>
+          )}
+          {(r.status === "pending" || r.status === "under_review") && (
+            <button
+              onClick={() => handleAction(r._id, "critical")}
+              disabled={!!resolving}
+              className="flex items-center gap-1 px-2 py-1 bg-purple-900/50 hover:bg-purple-800/60 disabled:opacity-50 text-purple-200 text-xs rounded transition-colors"
+            >
+              <Zap size={10} /> Critical
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (noteInputs[r._id] === undefined) {
+                setNoteInputs((p) => ({ ...p, [r._id]: "" }));
+              } else {
+                handleAction(r._id, "approve");
+              }
+            }}
+            disabled={resolving === r._id + "approve"}
+            className="flex items-center gap-1 px-2 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded transition-colors"
+          >
+            {resolving === r._id + "approve" ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />}
+            {noteInputs[r._id] !== undefined ? "Confirm Approve" : "Approve"}
+          </button>
+          <button
+            onClick={() => handleAction(r._id, "reject")}
+            disabled={resolving === r._id + "reject"}
+            className="flex items-center gap-1 px-2 py-1 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded transition-colors"
+          >
+            {resolving === r._id + "reject" ? <Loader2 size={10} className="animate-spin" /> : <XCircle size={10} />}
+            Reject
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  const RequestRow = ({ r, showReviewBtn = false }: { r: Request; showReviewBtn?: boolean }) => {
+    const own = isOwnRequest(r);
+    return (
+      <div className={`p-4 hover:bg-gray-800/20 transition-colors ${own ? "bg-purple-950/10" : ""}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-sm font-medium text-white truncate">{r.departmentName}</span>
+              <PriorityBadge priority={r.priorityLevel} />
+              <StatusBadge status={r.status} />
+              {own && (
+                <span className="text-xs px-1.5 py-0.5 bg-purple-900/40 text-purple-300 border border-purple-700/40 rounded-full">
+                  Your Request
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 truncate">{r.justification}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Requested: <span className="text-white font-medium">{formatCurrency(r.requestedAmount)}</span>
+              {r.allocatedAmount > 0 && (
+                <> · Allocated: <span className="text-emerald-400 font-medium">{formatCurrency(r.allocatedAmount)}</span></>
+              )}
+            </p>
+            {r.adminNote && (
+              <p className="text-xs text-amber-400/80 mt-0.5 italic">Note: {r.adminNote}</p>
+            )}
+          </div>
+          <ActionButtons r={r} showReviewBtn={showReviewBtn} />
+        </div>
+      </div>
+    );
+  };
 
   const QueueSection = ({
     title, icon, requests: items, color, showReviewBtn = false,

@@ -110,6 +110,11 @@ router.post("/resolve/:id", authenticate, requireLocationAdmin, async (req: Auth
       res.status(403).json({ error: "Cannot manage requests outside your location" }); return;
     }
 
+    // Self-approval prevention: location admins cannot act on their own requests
+    if (!isGlobal && request.requestedBy.toString() === req.user!.id) {
+      res.status(403).json({ error: "Admins cannot approve, reject, or modify their own requests. These must be reviewed by the Finance Manager." }); return;
+    }
+
     const prev = request.toObject();
     const prevStatus = request.status;
 

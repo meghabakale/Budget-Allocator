@@ -19,7 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: "/negotiation", label: "Negotiation", icon: <MessageSquare size={18} />, show: true },
     { to: "/finance", label: "Finance Manager", icon: <TrendingUp size={18} />, show: isFinanceManager },
     { to: "/location-admin", label: "Location Admin", icon: <MapPin size={18} />, show: isLocationAdmin },
-    { to: "/admin", label: "Conflict Panel", icon: <ShieldCheck size={18} />, show: isAdmin },
+    { to: "/admin", label: "Admin Panel", icon: <ShieldCheck size={18} />, show: isAdmin },
     { to: "/audit", label: "Audit Logs", icon: <ClipboardList size={18} />, show: isAdmin },
   ].filter((item) => item.show);
 
