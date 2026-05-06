@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import {
   LayoutDashboard, FileText, MessageSquare, ShieldCheck,
-  ClipboardList, LogOut, DollarSign, Wifi, WifiOff,
+  ClipboardList, LogOut, IndianRupee, Wifi, WifiOff,
   TrendingUp, MapPin, Users
 } from "lucide-react";
 
@@ -14,7 +14,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} />, show: true },
-    { to: "/allocation", label: "Allocation Board", icon: <DollarSign size={18} />, show: true },
+    { to: "/allocation", label: "Allocation Board", icon: <IndianRupee size={18} />, show: true },
     { to: "/requests", label: "My Requests", icon: <FileText size={18} />, show: true },
     { to: "/negotiation", label: "Negotiation", icon: <MessageSquare size={18} />, show: true },
     { to: "/finance", label: "Finance Manager", icon: <TrendingUp size={18} />, show: isFinanceManager },
@@ -43,7 +43,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-6 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <DollarSign size={16} />
+              <IndianRupee size={16} />
             </div>
             <div>
               <p className="font-bold text-sm text-white">BudgetFlow</p>
