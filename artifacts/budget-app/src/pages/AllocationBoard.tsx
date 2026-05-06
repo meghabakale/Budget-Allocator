@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSocket } from "../context/SocketContext";
-import { useAuth } from "../context/AuthContext";
 import { api } from "../services/api";
 import Layout from "../components/Layout";
 import StatusBadge, { PriorityBadge } from "../components/StatusBadge";
 import { formatCurrency } from "../lib/currency";
-import { RefreshCw, CheckCircle2, XCircle, Loader2, Zap, Eye, MessageCircle } from "lucide-react";
+import { Search, X, MapPin, Clock, RefreshCw, Zap, CheckCircle2, AlertTriangle, XCircle, Eye } from "lucide-react";
 
 interface Budget {
   totalBudget: number;
@@ -22,6 +21,7 @@ interface Request {
   status: string;
   priorityLevel: string;
   justification: string;
+  location: string;
   createdAt: string;
   adminNote?: string;
 }
@@ -34,13 +34,138 @@ const DEPT_COLORS: Record<string, string> = {
   Administration: "bg-gray-600",
 };
 
+const STATUS_GROUPS: Array<{
+  key: string;
+  label: string;
+  statuses: string[];
+  border: string;
+  badge: string;
+  icon: React.ReactNode;
+}> = [
+  { key: "approved",        label: "Approved",           statuses: ["approved"],           border: "border-green-800",   badge: "bg-green-900/40 text-green-400 border-green-800",   icon: <CheckCircle2 size={13} className="text-green-400" /> },
+  { key: "pending",         label: "Pending Review",     statuses: ["pending", "under_review"], border: "border-blue-800",    badge: "bg-blue-900/40 text-blue-400 border-blue-800",      icon: <Eye size={13} className="text-blue-400" /> },
+  { key: "critical",        label: "Critical",           statuses: ["critical"],           border: "border-purple-700",  badge: "bg-purple-900/40 text-purple-400 border-purple-700", icon: <Zap size={13} className="text-purple-400" /> },
+  { key: "negotiation",     label: "Conflicts / Negotiating", statuses: ["conflicted", "under_negotiation"], border: "border-yellow-800", badge: "bg-yellow-900/40 text-yellow-400 border-yellow-800", icon: <AlertTriangle size={13} className="text-yellow-400" /> },
+  { key: "reapproval",      label: "Pending Re-Approval",statuses: ["pending_reapproval"], border: "border-cyan-700",    badge: "bg-cyan-900/40 text-cyan-400 border-cyan-700",       icon: <RefreshCw size={13} className="text-cyan-400" /> },
+  { key: "rejected",        label: "Rejected",           statuses: ["rejected"],           border: "border-gray-700",    badge: "bg-gray-800 text-gray-400 border-gray-700",          icon: <XCircle size={13} className="text-gray-400" /> },
+];
+
+function DetailModal({ req, onClose }: { req: Request; onClose: () => void }) {
+  const fields = [
+    { label: "Department", value: req.departmentName },
+    { label: "Location", value: req.location || "—" },
+    { label: "Requested Amount", value: formatCurrency(req.requestedAmount) },
+    { label: "Allocated Amount", value: req.allocatedAmount > 0 ? formatCurrency(req.allocatedAmount) : "—" },
+    { label: "Priority", value: <PriorityBadge priority={req.priorityLevel} /> },
+    { label: "Status", value: <StatusBadge status={req.status} /> },
+    { label: "Submitted", value: new Date(req.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-5 border-b border-gray-800">
+          <div>
+            <h3 className="font-semibold text-white text-lg">{req.departmentName}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Request Detail</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          {fields.map(({ label, value }) => (
+            <div key={label} className="flex items-center justify-between py-2 border-b border-gray-800/60 last:border-0">
+              <span className="text-xs text-gray-500">{label}</span>
+              <span className="text-sm font-medium text-white">{value as React.ReactNode}</span>
+            </div>
+          ))}
+
+          <div className="pt-1">
+            <p className="text-xs text-gray-500 mb-1">Justification</p>
+            <p className="text-sm text-gray-300 bg-gray-800 rounded-lg p-3 leading-relaxed">{req.justification}</p>
+          </div>
+
+          {req.adminNote && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Admin Note</p>
+              <p className="text-sm text-amber-300 bg-amber-900/20 border border-amber-700/30 rounded-lg p-3 italic">{req.adminNote}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="p-5 border-t border-gray-800">
+          <p className="text-xs text-gray-600 text-center">
+            This is a read-only view. Use the Location Admin or Requests pages to take action.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RequestCard({ req, onClick }: { req: Request; onClick: () => void }) {
+  const dotColor = DEPT_COLORS[req.departmentName] || "bg-gray-500";
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left rounded-lg p-3 bg-gray-800 hover:bg-gray-750 hover:ring-1 hover:ring-blue-500/40 transition-all cursor-pointer group"
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+          <p className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors truncate max-w-[140px]">
+            {req.departmentName}
+          </p>
+        </div>
+        <PriorityBadge priority={req.priorityLevel} />
+      </div>
+
+      {req.location && (
+        <div className="flex items-center gap-1 text-xs text-gray-500 mb-1.5">
+          <MapPin size={10} />
+          <span>{req.location}</span>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500 line-clamp-2 mb-2">{req.justification}</p>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs text-gray-500">Requested</p>
+          <p className="text-sm font-bold text-white">{formatCurrency(req.requestedAmount)}</p>
+        </div>
+        {req.allocatedAmount > 0 && (
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Allocated</p>
+            <p className="text-sm font-bold text-green-400">{formatCurrency(req.allocatedAmount)}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mt-2">
+        <StatusBadge status={req.status} />
+        <div className="flex items-center gap-1 text-xs text-gray-600">
+          <Clock size={9} />
+          <span>{new Date(req.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function AllocationBoard() {
   const { socket } = useSocket();
-  const { isFinanceManager, isLocationAdmin } = useAuth();
   const [budget, setBudget] = useState<Budget | null>(null);
   const [requests, setRequests] = useState<Request[]>([]);
-  const [resolving, setResolving] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [selectedReq, setSelectedReq] = useState<Request | null>(null);
 
   const load = useCallback(async () => {
     const [b, r] = await Promise.all([api.budget.get(), api.requests.list()]);
@@ -68,185 +193,59 @@ export default function AllocationBoard() {
     };
   }, [socket, load]);
 
-  const showToast = (msg: string, ok: boolean) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  const handleStatusChange = async (req: Request, action: string) => {
-    setResolving(req._id + action);
-    try {
-      if (action === "approve" || action === "reject") {
-        await api.conflicts.resolve({
-          requestId: req._id,
-          action,
-          allocatedAmount: action === "approve" ? req.requestedAmount : 0,
-        });
-      } else {
-        await api.locationAdmin.resolve(req._id, action);
-      }
-      await load();
-      showToast(
-        action === "approve" ? "Request approved" :
-        action === "reject" ? "Request rejected" :
-        `Status updated to ${action.replace(/_/g, " ")}`,
-        true
-      );
-    } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Action failed", false);
-    } finally {
-      setResolving(null);
-    }
-  };
-
   const approved = requests.filter((r) => r.status === "approved");
-  const pendingReview = requests.filter((r) => ["pending", "under_review"].includes(r.status));
-  const critical = requests.filter((r) => r.status === "critical");
-  const conflicts = requests.filter((r) => r.status === "conflicted" || r.status === "under_negotiation");
-  const pendingReapproval = requests.filter((r) => r.status === "pending_reapproval");
 
-  const canAct = isFinanceManager || isLocationAdmin;
-
-  const RequestCard = ({
-    req,
-    showApproveReject = false,
-    showReviewActions = false,
-  }: {
-    req: Request;
-    showApproveReject?: boolean;
-    showReviewActions?: boolean;
-  }) => (
-    <div className={`rounded-lg p-3 ${
-      req.status === "critical" ? "bg-purple-950/40 border border-purple-700/40" :
-      req.status === "pending_reapproval" ? "bg-cyan-950/40 border border-cyan-700/40" :
-      req.status === "under_review" ? "bg-orange-950/20 border border-orange-800/30" :
-      "bg-gray-800"
-    }`}>
-      <div className="flex items-center justify-between mb-1">
-        <div className={`w-2.5 h-2.5 rounded-full ${DEPT_COLORS[req.departmentName] || "bg-gray-500"}`} />
-        <PriorityBadge priority={req.priorityLevel} />
-      </div>
-      <p className="text-sm font-semibold text-white">{req.departmentName}</p>
-      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{req.justification}</p>
-      <div className="flex items-center justify-between mt-2">
-        <div>
-          <p className="text-xs text-gray-500">Requested</p>
-          <p className="text-sm font-bold text-white">{formatCurrency(req.requestedAmount)}</p>
-        </div>
-        {req.allocatedAmount > 0 && (
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Allocated</p>
-            <p className="text-sm font-bold text-green-400">{formatCurrency(req.allocatedAmount)}</p>
-          </div>
-        )}
-      </div>
-      {req.adminNote && (
-        <p className="text-xs text-amber-400/70 mt-1 italic line-clamp-1">"{req.adminNote}"</p>
-      )}
-      <div className="mt-2">
-        <StatusBadge status={req.status} />
-      </div>
-
-      {/* Approve / Reject for re-approval and conflict resolution */}
-      {showApproveReject && canAct && (
-        <div className="flex gap-2 mt-3">
-          <button
-            onClick={() => handleStatusChange(req, "approve")}
-            disabled={resolving === req._id + "approve"}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
-          >
-            {resolving === req._id + "approve" ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-            Approve
-          </button>
-          <button
-            onClick={() => handleStatusChange(req, "reject")}
-            disabled={resolving === req._id + "reject"}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
-          >
-            {resolving === req._id + "reject" ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
-            Reject
-          </button>
-        </div>
-      )}
-
-      {/* Review queue actions: mark under_review, negotiate, approve, reject */}
-      {showReviewActions && canAct && (
-        <div className="grid grid-cols-2 gap-1.5 mt-3">
-          {req.status === "pending" && (
-            <button
-              onClick={() => handleStatusChange(req, "under_review")}
-              disabled={!!resolving}
-              className="col-span-2 flex items-center justify-center gap-1 py-1.5 bg-orange-800/60 hover:bg-orange-700/70 disabled:opacity-50 text-orange-200 text-xs rounded-lg transition-colors"
-            >
-              <Eye size={11} /> Mark Under Review
-            </button>
-          )}
-          {(req.status === "pending" || req.status === "under_review") && (
-            <button
-              onClick={() => handleStatusChange(req, "under_negotiation")}
-              disabled={!!resolving}
-              className="flex items-center justify-center gap-1 py-1.5 bg-yellow-900/50 hover:bg-yellow-800/60 disabled:opacity-50 text-yellow-200 text-xs rounded-lg transition-colors"
-            >
-              <MessageCircle size={11} /> Negotiate
-            </button>
-          )}
-          <button
-            onClick={() => handleStatusChange(req, "approve")}
-            disabled={resolving === req._id + "approve"}
-            className="flex items-center justify-center gap-1 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
-          >
-            {resolving === req._id + "approve" ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-            Approve
-          </button>
-          <button
-            onClick={() => handleStatusChange(req, "reject")}
-            disabled={resolving === req._id + "reject"}
-            className="flex items-center justify-center gap-1 py-1.5 bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs rounded-lg transition-colors"
-          >
-            {resolving === req._id + "reject" ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
-            Reject
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  // Dynamic column count
-  const columnCount = [
-    approved.length > 0,
-    pendingReview.length > 0 || true,
-    critical.length > 0,
-    conflicts.length > 0,
-    pendingReapproval.length > 0,
-  ].filter(Boolean).length;
+  const filtered = requests.filter((r) => {
+    const q = search.toLowerCase();
+    const matchesSearch =
+      !q ||
+      r.departmentName.toLowerCase().includes(q) ||
+      r.justification.toLowerCase().includes(q) ||
+      (r.location || "").toLowerCase().includes(q);
+    const matchesStatus =
+      filterStatus === "all" ||
+      STATUS_GROUPS.find((g) => g.key === filterStatus)?.statuses.includes(r.status);
+    const matchesPriority = filterPriority === "all" || r.priorityLevel === filterPriority;
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
 
   return (
     <Layout>
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-xl ${toast.ok ? "bg-emerald-700 text-white" : "bg-red-700 text-white"}`}>
-          {toast.msg}
-        </div>
+      {selectedReq && (
+        <DetailModal req={selectedReq} onClose={() => setSelectedReq(null)} />
       )}
 
       <div className="p-6 space-y-6">
+        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-white">Allocation Board</h1>
-          <p className="text-gray-400 text-sm mt-0.5">Real-time budget distribution across departments</p>
+          <p className="text-gray-400 text-sm mt-0.5">
+            Real-time budget monitoring across departments — click any request to view details
+          </p>
         </div>
 
+        {/* Budget breakdown bar */}
         {budget && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-gray-400 mb-4">Budget Breakdown</h3>
-            <div className="flex h-8 rounded-lg overflow-hidden gap-0.5">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-400">Budget Breakdown</h3>
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span>Total: <span className="text-white font-medium">{formatCurrency(budget.totalBudget)}</span></span>
+                <span>Allocated: <span className="text-green-400 font-medium">{formatCurrency(budget.allocatedAmount)}</span></span>
+                <span>Remaining: <span className="text-yellow-400 font-medium">{formatCurrency(budget.remainingAmount)}</span></span>
+              </div>
+            </div>
+            <div className="flex h-6 rounded-lg overflow-hidden gap-0.5">
               {approved.map((req) => {
                 const pct = (req.allocatedAmount / budget.totalBudget) * 100;
                 const color = DEPT_COLORS[req.departmentName] || "bg-gray-600";
                 return (
                   <div
                     key={req._id}
-                    className={`${color} transition-all duration-500 relative group cursor-default`}
+                    className={`${color} transition-all duration-500 relative group cursor-pointer`}
                     style={{ width: `${pct}%` }}
                     title={`${req.departmentName}: ${formatCurrency(req.allocatedAmount)}`}
+                    onClick={() => setSelectedReq(req)}
                   >
                     <div className="absolute inset-0 hidden group-hover:flex items-center justify-center">
                       <span className="text-xs text-white font-bold">{Math.round(pct)}%</span>
@@ -259,132 +258,94 @@ export default function AllocationBoard() {
                 title={`Remaining: ${formatCurrency(budget.remainingAmount)}`}
               />
             </div>
-            <div className="flex flex-wrap gap-3 mt-3">
+            <div className="flex flex-wrap gap-3 mt-2">
               {approved.map((req) => (
                 <div key={req._id} className="flex items-center gap-1.5 text-xs text-gray-400">
-                  <div className={`w-2.5 h-2.5 rounded-sm ${DEPT_COLORS[req.departmentName] || "bg-gray-600"}`} />
+                  <div className={`w-2 h-2 rounded-sm ${DEPT_COLORS[req.departmentName] || "bg-gray-600"}`} />
                   {req.departmentName}
                 </div>
               ))}
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                <div className="w-2.5 h-2.5 rounded-sm bg-gray-700" />
-                Remaining ({formatCurrency(budget.remainingAmount)})
+                <div className="w-2 h-2 rounded-sm bg-gray-700" />
+                Remaining
               </div>
             </div>
           </div>
         )}
 
-        {/* Alert banners */}
-        {critical.length > 0 && (
-          <div className="flex items-start gap-3 p-4 bg-purple-900/20 border border-purple-600/50 rounded-xl">
-            <Zap size={16} className="text-purple-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-purple-300">
-                {critical.length} Critical Request(s) — Urgent Admin Attention Required
-              </p>
-              <p className="text-xs text-purple-400/80 mt-0.5">These high-priority requests need immediate review and approval.</p>
-            </div>
-          </div>
-        )}
-
-        {pendingReapproval.length > 0 && (
-          <div className="flex items-start gap-3 p-4 bg-cyan-900/20 border border-cyan-600/50 rounded-xl">
-            <RefreshCw size={16} className="text-cyan-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-cyan-300">
-                Budget Now Available — {pendingReapproval.length} Request(s) Awaiting Re-Approval
-              </p>
-              <p className="text-xs text-cyan-400/80 mt-0.5">
-                These requests were previously conflicted. Budget is now available but admin must explicitly approve each one.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Board columns */}
-        <div
-          className="grid gap-5"
-          style={{ gridTemplateColumns: `repeat(${Math.min(columnCount, 5)}, minmax(0, 1fr))` }}
-        >
-          {/* Approved */}
-          <div className="bg-gray-900 border border-green-800 rounded-xl">
-            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
-                <CheckCircle2 size={13} className="text-green-400" /> Approved
-              </h3>
-              <span className="text-xs bg-green-900/40 text-green-400 border border-green-800 px-2 py-0.5 rounded-full">{approved.length}</span>
-            </div>
-            <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
-              {approved.map((req) => <RequestCard key={req._id} req={req} />)}
-              {approved.length === 0 && <p className="text-xs text-gray-600 text-center py-6">None</p>}
-            </div>
+        {/* Search & Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-48">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search by department, justification, location…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
+                <X size={13} />
+              </button>
+            )}
           </div>
 
-          {/* Pending Review */}
-          <div className="bg-gray-900 border border-blue-800 rounded-xl">
-            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
-                <Eye size={13} className="text-orange-400" /> Pending Review
-              </h3>
-              <span className="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 px-2 py-0.5 rounded-full">{pendingReview.length}</span>
-            </div>
-            <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
-              {pendingReview.map((req) => (
-                <RequestCard key={req._id} req={req} showReviewActions />
-              ))}
-              {pendingReview.length === 0 && <p className="text-xs text-gray-600 text-center py-6">None</p>}
-            </div>
-          </div>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All Statuses</option>
+            {STATUS_GROUPS.map((g) => (
+              <option key={g.key} value={g.key}>{g.label}</option>
+            ))}
+          </select>
 
-          {/* Critical — only shown when items exist */}
-          {critical.length > 0 && (
-            <div className="bg-gray-900 border border-purple-700/50 rounded-xl">
-              <div className="p-4 border-b border-purple-800/40 flex items-center justify-between bg-purple-950/20">
-                <h3 className="text-sm font-medium text-purple-300 flex items-center gap-1.5">
-                  <Zap size={13} /> Critical
-                </h3>
-                <span className="text-xs bg-purple-900/50 text-purple-300 border border-purple-700/50 px-2 py-0.5 rounded-full">{critical.length}</span>
+          <select
+            value={filterPriority}
+            onChange={(e) => setFilterPriority(e.target.value)}
+            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+          >
+            <option value="all">All Priorities</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+
+          <span className="text-xs text-gray-500 shrink-0">
+            {filtered.length} of {requests.length} requests
+          </span>
+        </div>
+
+        {/* Status columns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {STATUS_GROUPS.map((group) => {
+            const items = filtered.filter((r) => group.statuses.includes(r.status));
+            return (
+              <div key={group.key} className={`bg-gray-900 border ${group.border} rounded-xl flex flex-col`}>
+                <div className="p-3 border-b border-gray-800 flex items-center justify-between">
+                  <h3 className="text-xs font-medium text-white flex items-center gap-1.5">
+                    {group.icon}
+                    <span className="truncate">{group.label}</span>
+                  </h3>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${group.badge}`}>
+                    {items.length}
+                  </span>
+                </div>
+                <div className="p-2 space-y-2 overflow-y-auto max-h-[420px] flex-1">
+                  {items.map((req) => (
+                    <RequestCard key={req._id} req={req} onClick={() => setSelectedReq(req)} />
+                  ))}
+                  {items.length === 0 && (
+                    <p className="text-xs text-gray-700 text-center py-6">
+                      {search || filterStatus !== "all" || filterPriority !== "all" ? "No matches" : "None"}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
-                {critical.map((req) => (
-                  <RequestCard key={req._id} req={req} showApproveReject />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Conflicts / Negotiating */}
-          <div className="bg-gray-900 border border-yellow-800 rounded-xl">
-            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-sm font-medium text-white flex items-center gap-1.5">
-                <MessageCircle size={13} className="text-yellow-400" /> Conflicts / Negotiating
-              </h3>
-              <span className="text-xs bg-yellow-900/40 text-yellow-400 border border-yellow-800 px-2 py-0.5 rounded-full">{conflicts.length}</span>
-            </div>
-            <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
-              {conflicts.map((req) => (
-                <RequestCard key={req._id} req={req} showApproveReject />
-              ))}
-              {conflicts.length === 0 && <p className="text-xs text-gray-600 text-center py-6">None</p>}
-            </div>
-          </div>
-
-          {/* Pending Re-Approval — only shown when items exist */}
-          {pendingReapproval.length > 0 && (
-            <div className="bg-gray-900 border border-cyan-700/50 rounded-xl">
-              <div className="p-4 border-b border-cyan-800/40 flex items-center justify-between bg-cyan-950/20">
-                <h3 className="text-sm font-medium text-cyan-300 flex items-center gap-1.5">
-                  <RefreshCw size={13} /> Pending Re-Approval
-                </h3>
-                <span className="text-xs bg-cyan-900/50 text-cyan-300 border border-cyan-700/50 px-2 py-0.5 rounded-full">{pendingReapproval.length}</span>
-              </div>
-              <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
-                {pendingReapproval.map((req) => (
-                  <RequestCard key={req._id} req={req} showApproveReject />
-                ))}
-              </div>
-            </div>
-          )}
+            );
+          })}
         </div>
       </div>
     </Layout>

@@ -1,0 +1,218 @@
+Refine the UI of the:
+
+"Real-Time Collaborative Budget Allocation System"
+
+with the following enterprise-grade UI improvements.
+
+---
+
+🔷 OBJECTIVE
+
+Improve the Admin Allocation Page by transforming it into a cleaner monitoring dashboard while also standardizing the entire application to use the Indian Rupee symbol (₹) and Indian currency formatting.
+
+These updates must remain UI-focused and must NOT modify:
+
+- backend logic
+- approval workflows
+- negotiation workflows
+- status lifecycle
+- actions/buttons on other pages
+
+---
+
+🔷 PART 1 — ADMIN ALLOCATION PAGE CLEANUP
+
+Apply changes ONLY to:
+
+Admin Allocation Page
+
+---
+
+✅ KEEP ALL EXISTING STATUS PANELS
+
+Do NOT remove any panels.
+
+Keep:
+
+- Pending
+- Approved
+- Conflicted
+- Pending Re-Approval
+- Critical
+- Rejected (if exists)
+
+Requests must continue to be grouped by status.
+
+---
+
+🔴 REMOVE ONLY ACTION BUTTONS FROM THIS PAGE
+
+Remove these buttons ONLY from:
+
+Admin Allocation Page
+
+Remove:
+
+- Mark Under Review
+- Start Negotiation
+- Approve
+- Reject
+- Modify Status
+
+---
+
+✅ WHAT SHOULD REMAIN VISIBLE
+
+Each request card/row should still display:
+
+- Department Name
+- Requested Amount
+- Current Status
+- Priority
+- Timestamp
+- Location
+
+Admin should still be able to:
+
+- View requests
+- Search requests
+- Filter requests
+- Open detailed request view/modal
+
+---
+
+🔷 IMPORTANT BEHAVIOR
+
+If Admin clicks a request:
+
+- Open Request Detail Page or Modal
+
+Inside detailed pages/modals:
+✅ Keep ALL workflow actions and buttons
+
+This update must NOT affect:
+
+- Negotiation Page
+- Conflict Resolution Page
+- Request Detail Page
+- Backend workflows
+- Status logic
+- Approval workflows
+
+---
+
+🎨 DESIGN GOAL
+
+Transform the Allocation Page into a:
+
+Clean Allocation Monitoring Dashboard
+
+instead of an action-heavy workflow page.
+
+The page should feel:
+
+- minimal
+- enterprise-grade
+- easier to monitor
+- less cluttered
+
+---
+
+🔷 PART 2 — INDIAN RUPEE (₹) STANDARDIZATION
+
+Across the ENTIRE application:
+
+❌ Remove:
+
+$
+
+✅ Replace with:
+
+₹
+
+---
+
+🔷 APPLY ₹ SYMBOL ON ALL PAGES
+
+Update all monetary displays in:
+
+- Dashboard
+- Allocation Page
+- Requests Page
+- Negotiation Panel
+- Finance Manager Dashboard
+- Admin Dashboard
+- HOD Dashboard
+- Audit Logs
+- Export Pages
+- Charts
+- Modals
+- Tables
+- Tooltips
+- Notifications
+
+---
+
+🔷 USE INDIAN NUMBER FORMAT
+
+Format all monetary values using Indian locale formatting.
+
+Use:
+
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
+
+Examples:
+
+- 100000 → ₹1,00,000
+- 2500000 → ₹25,00,000
+
+---
+
+🔷 BACKEND RULE
+
+- Store ONLY numeric values in database
+- Do NOT store currency symbols in DB
+- Apply formatting only at:
+  - UI level
+  - export layer
+
+---
+
+🔷 EXPORT SYSTEM UPDATE
+
+Ensure:
+
+- CSV exports use ₹ formatting
+- PDF exports use ₹ formatting
+- JSON exports may include:
+
+{
+  "amount": 100000,
+  "formatted": "₹1,00,000"
+}
+
+---
+
+⚠️ STRICT RULES
+
+- Do NOT remove panels
+- Do NOT alter backend logic
+- Do NOT affect buttons/actions on other pages
+- Do NOT change workflows
+- Do NOT modify status lifecycle
+
+---
+
+🎯 FINAL GOAL
+
+Deliver a polished enterprise-grade UI where:
+
+- The Admin Allocation Page becomes a clean monitoring dashboard
+- Workflow actions remain available only in detailed workflow pages
+- All financial data is fully localized using Indian Rupee formatting
+- The system feels cleaner, more professional, and easier to monitor

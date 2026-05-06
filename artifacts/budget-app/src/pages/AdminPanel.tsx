@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSocket } from "../context/SocketContext";
-import { useAuth } from "../context/AuthContext";
 import { api } from "../services/api";
 import Layout from "../components/Layout";
 import StatusBadge, { PriorityBadge } from "../components/StatusBadge";
-import { CheckCircle, XCircle, RotateCcw, DollarSign, Edit2, X, Loader2, Download } from "lucide-react";
+import { formatCurrency } from "../lib/currency";
+import { CheckCircle, XCircle, RotateCcw, IndianRupee, Edit2, X, Loader2, Download } from "lucide-react";
 
 interface Budget {
   totalBudget: number;
@@ -63,7 +63,7 @@ function ResolveModal({ request, onClose, onDone }: { request: Request; onClose:
         <form onSubmit={submit} className="p-5 space-y-4">
           {error && <div className="p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">{error}</div>}
           <div className="p-3 bg-gray-800 rounded-lg text-sm text-gray-300 space-y-1">
-            <div className="flex justify-between"><span className="text-gray-500">Requested:</span><span className="text-white font-semibold">${request.requestedAmount.toLocaleString()}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Requested:</span><span className="text-white font-semibold">{formatCurrency(request.requestedAmount)}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Priority:</span><PriorityBadge priority={request.priorityLevel} /></div>
             <div className="flex justify-between"><span className="text-gray-500">Status:</span><StatusBadge status={request.status} /></div>
           </div>
@@ -90,7 +90,7 @@ function ResolveModal({ request, onClose, onDone }: { request: Request; onClose:
           </div>
           {action !== "reject" && (
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Allocated Amount ($)</label>
+              <label className="block text-xs text-gray-400 mb-1">Allocated Amount (₹)</label>
               <input
                 type="number"
                 value={amount}
@@ -165,7 +165,6 @@ export default function AdminPanel() {
   };
 
   const allConflicts = requests.filter((r) => r.status === "conflicted" || r.status === "under_negotiation");
-  const allApproved = requests.filter((r) => r.status === "approved");
 
   return (
     <Layout>
@@ -197,11 +196,16 @@ export default function AdminPanel() {
           </div>
         </div>
 
+        {/* Budget Control */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2"><DollarSign size={16} className="text-blue-400" /> Budget Control</h3>
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <IndianRupee size={16} className="text-blue-400" /> Budget Control
+            </h3>
             {!budgetEdit ? (
-              <button onClick={() => setBudgetEdit(true)} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300"><Edit2 size={12} /> Edit</button>
+              <button onClick={() => setBudgetEdit(true)} className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300">
+                <Edit2 size={12} /> Edit
+              </button>
             ) : (
               <div className="flex items-center gap-2">
                 <input
@@ -224,13 +228,14 @@ export default function AdminPanel() {
               ].map((item) => (
                 <div key={item.label} className="bg-gray-800 rounded-lg p-3">
                   <p className="text-xs text-gray-500">{item.label}</p>
-                  <p className={`text-xl font-bold ${item.color} mt-1`}>${item.value.toLocaleString()}</p>
+                  <p className={`text-xl font-bold ${item.color} mt-1`}>{formatCurrency(item.value)}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
 
+        {/* Conflicts section */}
         {allConflicts.length > 0 && (
           <div className="bg-gray-900 border border-yellow-800 rounded-xl">
             <div className="p-4 border-b border-gray-800 flex items-center gap-2">
@@ -248,7 +253,9 @@ export default function AdminPanel() {
                       <StatusBadge status={req.status} />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">{req.justification}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Requested: <span className="text-white font-semibold">${req.requestedAmount.toLocaleString()}</span></p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Requested: <span className="text-white font-semibold">{formatCurrency(req.requestedAmount)}</span>
+                    </p>
                   </div>
                   <div className="flex gap-2 ml-4">
                     <button
@@ -270,6 +277,7 @@ export default function AdminPanel() {
           </div>
         )}
 
+        {/* All Requests table */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl">
           <div className="p-4 border-b border-gray-800">
             <h3 className="text-sm font-semibold text-white">All Requests</h3>
@@ -278,7 +286,7 @@ export default function AdminPanel() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-800">
-                  {["Department", "Requested", "Allocated", "Priority", "Status", "Actions"].map((h) => (
+                  {["Department", "Requested (₹)", "Allocated (₹)", "Priority", "Status", "Actions"].map((h) => (
                     <th key={h} className="text-left text-xs text-gray-500 px-4 py-3">{h}</th>
                   ))}
                 </tr>
@@ -290,16 +298,28 @@ export default function AdminPanel() {
                       <p className="text-sm text-white font-medium">{req.departmentName}</p>
                       <p className="text-xs text-gray-500 max-w-xs line-clamp-1">{req.justification}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-white">${req.requestedAmount.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-white">{formatCurrency(req.requestedAmount)}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-green-400">
-                      {req.allocatedAmount > 0 ? `$${req.allocatedAmount.toLocaleString()}` : "—"}
+                      {req.allocatedAmount > 0 ? formatCurrency(req.allocatedAmount) : "—"}
                     </td>
                     <td className="px-4 py-3"><PriorityBadge priority={req.priorityLevel} /></td>
                     <td className="px-4 py-3"><StatusBadge status={req.status} /></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => setResolveTarget(req)} className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors" title="Resolve"><CheckCircle size={14} /></button>
-                        <button onClick={() => handleRollback(req._id)} className="p-1.5 text-gray-500 hover:text-orange-400 hover:bg-orange-900/20 rounded-lg transition-colors" title="Rollback"><RotateCcw size={14} /></button>
+                        <button
+                          onClick={() => setResolveTarget(req)}
+                          className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
+                          title="Resolve"
+                        >
+                          <CheckCircle size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleRollback(req._id)}
+                          className="p-1.5 text-gray-500 hover:text-orange-400 hover:bg-orange-900/20 rounded-lg transition-colors"
+                          title="Rollback"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>

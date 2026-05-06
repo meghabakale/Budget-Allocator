@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { api } from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { DollarSign, Loader2 } from "lucide-react";
+import { IndianRupee, Loader2 } from "lucide-react";
 import type { AuthUser } from "../context/AuthContext";
 
 const DEMO_USERS = [
@@ -58,7 +58,7 @@ export default function Login() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <DollarSign size={32} />
+            <IndianRupee size={32} />
           </div>
           <h1 className="text-3xl font-bold text-white">BudgetFlow</h1>
           <p className="text-gray-400 mt-1">Multi-Admin Collaborative Budget System</p>
