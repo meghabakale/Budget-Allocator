@@ -10,8 +10,8 @@ import { getIo } from "../sockets/index.js";
 const router = Router();
 
 /**
- * Any admin (location or finance) can resolve a conflict.
- * Location admins can only resolve conflicts within their own location.
+ * Any admin (location or finance) can resolve a conflict or approve a pending_reapproval.
+ * Location admins can only act within their own location.
  */
 router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
@@ -30,6 +30,7 @@ router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequ
     }
 
     const prev = request.toObject();
+    const prevStatus = request.status;
 
     switch (action) {
       case "approve":
@@ -52,15 +53,21 @@ router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequ
     request.version += 1;
     await request.save();
 
+    const actionTypeMap: Record<string, string> = {
+      approve: prevStatus === "pending_reapproval" ? "REAPPROVAL_APPROVED" : "CONFLICT_APPROVE",
+      reject: prevStatus === "pending_reapproval" ? "REAPPROVAL_REJECTED" : "CONFLICT_REJECT",
+      adjust: prevStatus === "pending_reapproval" ? "REAPPROVAL_ADJUSTED" : "CONFLICT_ADJUST",
+    };
+
     await logAction({
       userId: req.user!.id as unknown as mongoose.Types.ObjectId,
       username: req.user!.username,
-      actionType: `CONFLICT_${action.toUpperCase()}`,
+      actionType: actionTypeMap[action] ?? `CONFLICT_${action.toUpperCase()}`,
       entityId: request._id,
       entityType: "BudgetRequest",
       previousState: prev as Record<string, unknown>,
       newState: request.toObject() as Record<string, unknown>,
-      description: `${req.user!.username} ${action}d conflict for ${request.departmentName} — allocated $${request.allocatedAmount}${adminNote ? ` (note: ${adminNote})` : ""}`,
+      description: `${req.user!.username} ${action}d ${prevStatus === "pending_reapproval" ? "re-approval" : "conflict"} for ${request.departmentName} — allocated ₹${request.allocatedAmount.toLocaleString("en-IN")}${adminNote ? ` (note: ${adminNote})` : ""}`,
     });
 
     const io = getIo();
@@ -74,9 +81,6 @@ router.post("/resolve", authenticate, requireLocationAdmin, async (req: AuthRequ
   }
 });
 
-/**
- * Any admin can rollback a request to pending for re-evaluation.
- */
 router.post("/rollback/:id", authenticate, requireLocationAdmin, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
@@ -106,7 +110,7 @@ router.post("/rollback/:id", authenticate, requireLocationAdmin, async (req: Aut
       entityType: "BudgetRequest",
       previousState: prev as Record<string, unknown>,
       newState: request.toObject() as Record<string, unknown>,
-      description: `${req.user!.username} rolled back ${request.departmentName} to pending (was: ${prev.status}, allocated: $${prev.allocatedAmount})`,
+      description: `${req.user!.username} rolled back ${request.departmentName} to pending (was: ${prev.status})`,
     });
 
     const io = getIo();

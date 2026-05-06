@@ -1,0 +1,240 @@
+Enhance the system by implementing two critical enterprise-grade features in the:
+
+"Real-Time Collaborative Budget Allocation System with Conflict Arbitration"
+
+---
+
+🔷 FEATURE 1: CASCADING RECALCULATION WITH MANDATORY ADMIN APPROVAL
+
+---
+
+🔴 PROBLEM
+
+Current behavior:
+
+- When budget increases (due to reallocation, rollback, or conflict resolution)
+- Previously conflicted or rejected requests become valid
+- System automatically approves them ❌
+
+This violates real-world financial governance.
+
+---
+
+🎯 OBJECTIVE
+
+Modify the Cascading Recalculation Engine to ensure:
+
+- NO request is automatically approved after recalculation
+- All approvals require explicit Admin consent
+- System maintains strict control and auditability
+
+---
+
+⚙️ UPDATED RECALCULATION LOGIC
+
+During recalculation:
+
+1. Re-evaluate all requests
+
+2. If a request was:
+   
+   - previously CONFLICTED or REJECTED
+   - and now fits within budget
+
+👉 DO NOT auto-approve
+
+Instead:
+
+- Set:
+  status = PENDING_REAPPROVAL
+- Set:
+  allocatedAmount = 0 (or provisional value if needed)
+
+---
+
+🔄 UPDATED STATUS FLOW
+
+PENDING → UNDER_REVIEW → UNDER_NEGOTIATION
+→ CONFLICTED / REJECTED
+→ PENDING_REAPPROVAL
+→ APPROVED / REJECTED
+
+---
+
+🛡️ ADMIN WORKFLOW
+
+For all requests in PENDING_REAPPROVAL:
+
+Admin must manually:
+
+- APPROVE
+- REJECT
+- MODIFY allocation
+
+No automatic transitions allowed.
+
+---
+
+🖥️ UI REQUIREMENTS
+
+- Create section: "Pending Re-Approval"
+- Highlight these requests clearly
+- Show message:
+  “Budget now available – awaiting admin approval”
+
+Provide actions:
+
+- Approve
+- Reject
+- Adjust amount
+
+---
+
+🔌 REAL-TIME EVENTS
+
+Emit via Socket.io:
+
+- REQUEST_REQUIRES_REAPPROVAL
+
+Ensure all clients update instantly.
+
+---
+
+📜 AUDIT TRAIL
+
+Log:
+
+- previousStatus (CONFLICTED / REJECTED)
+- newStatus (PENDING_REAPPROVAL)
+- triggerReason = "Budget increased"
+- timestamp
+
+---
+
+⚖️ STRICT BUSINESS RULES
+
+- No automatic approval under any condition
+- Admin approval is mandatory
+- Recalculation updates eligibility only, NOT decisions
+- Maintain full traceability
+
+---
+
+🔷 FEATURE 2: INDIAN RUPEE (₹) CURRENCY STANDARDIZATION
+
+---
+
+🎯 OBJECTIVE
+
+Standardize all financial values using:
+
+- Indian Rupee (₹)
+- Indian numbering format (e.g., ₹1,00,000)
+
+---
+
+💻 FRONTEND REQUIREMENTS (React)
+
+1. Replace all "$" symbols with "₹"
+
+---
+
+2. Use Indian currency formatter:
+
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount);
+};
+
+Examples:
+
+- 100000 → ₹1,00,000
+- 2500000 → ₹25,00,000
+
+---
+
+3. Apply formatting in:
+
+- Dashboard
+- Allocation Board
+- Requests Table
+- Charts (labels/tooltips)
+- Negotiation panel
+- Audit logs
+
+---
+
+⚙️ BACKEND REQUIREMENTS
+
+- Store all monetary values as plain numbers
+- Do NOT store "₹" in database
+- API responses must return numeric values only
+
+---
+
+📊 EXPORT SYSTEM UPDATE
+
+1. CSV Export:
+
+- Include ₹ formatted values
+- Ensure Excel compatibility
+
+---
+
+2. JSON Export:
+   Option:
+
+{
+  "amount": 100000,
+  "formatted": "₹1,00,000"
+}
+
+---
+
+3. PDF Export:
+
+- Ensure ₹ renders correctly
+- Use UTF-8 encoding
+
+---
+
+🗄️ DATABASE RULE
+
+- Store only numeric values
+- Apply formatting only in:
+  - UI
+  - export layer
+
+---
+
+✅ VALIDATION
+
+- Ensure NO "$" symbol exists anywhere
+- All values must follow Indian format
+- Test large values (lakhs, crores)
+
+---
+
+🔧 OPTIONAL ENHANCEMENT
+
+- Add config:
+  currency = "INR"
+- Enable future multi-currency support
+
+---
+
+🎯 FINAL GOAL
+
+Deliver a system that:
+
+- Enforces strict admin-controlled approval workflows
+- Prevents automatic approvals during recalculation
+- Maintains full auditability and governance
+- Displays all financial data using Indian Rupee standards
+- Ensures consistency across UI, backend, and exports
+
+---
+
+This enhancement aligns the system with real-world financial systems while improving localization and control.

@@ -1,16 +1,14 @@
 /**
  * Production-Grade Cascading Recalculation Engine
  *
- * Centralized service that recalculates the entire budget allocation system
- * whenever any change occurs. Guarantees consistency, prevents over-allocation,
- * and propagates updates in real-time via Socket.io.
- *
  * Allocation rules (applied in order):
  *   1. Priority: High > Medium > Low
  *   2. Tie-break: earlier createdAt wins
- *   3. If requestedAmount ≤ remaining → APPROVED, allocatedAmount = requestedAmount
- *   4. If requestedAmount > remaining → CONFLICTED, allocatedAmount = 0
- *   5. Already-rejected requests are left as REJECTED (explicit admin decision)
+ *   3. If requestedAmount ≤ remaining AND prevStatus is NOT conflicted/pending_reapproval → APPROVED
+ *   4. If requestedAmount ≤ remaining AND prevStatus is conflicted → PENDING_REAPPROVAL (no auto-approve!)
+ *   5. If requestedAmount > remaining → CONFLICTED (pending_reapproval reverts to conflicted)
+ *   6. Explicitly rejected requests are NEVER touched (admin decisions)
+ *   7. PENDING_REAPPROVAL requests do NOT consume budget — admin approval commits funds
  */
 
 import mongoose from "mongoose";
@@ -32,17 +30,18 @@ export type TriggerType =
 
 const PRIORITY_ORDER: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
 
-/** Simple in-process lock to prevent concurrent recalculations from racing */
+/** Set of statuses that were previously denied and require admin re-approval when budget opens up */
+const REQUIRES_REAPPROVAL = new Set(["conflicted"]);
+
+/** In-process lock to prevent concurrent recalculations from racing */
 let recalcRunning = false;
 let recalcQueued = false;
 
 export async function recalculateSystem(triggerType: TriggerType): Promise<void> {
-  // If already running, queue one more run (not multiple)
   if (recalcRunning) {
     recalcQueued = true;
     return;
   }
-
   recalcRunning = true;
   try {
     await _doRecalculate(triggerType);
@@ -50,29 +49,28 @@ export async function recalculateSystem(triggerType: TriggerType): Promise<void>
     recalcRunning = false;
     if (recalcQueued) {
       recalcQueued = false;
-      // Run the queued recalculation without blocking the current call stack
       setImmediate(() => recalculateSystem("MANUAL"));
     }
   }
 }
 
 async function _doRecalculate(triggerType: TriggerType): Promise<void> {
-  // ─── 1. Start a MongoDB session for atomicity ────────────────────────────
   const session = await mongoose.startSession();
 
   try {
     await session.withTransaction(async () => {
-      // ─── 2. Fetch current state ────────────────────────────────────────
+      // ── 1. Fetch state ────────────────────────────────────────────────────
       const budget = await Budget.findOne().session(session);
       if (!budget) throw new Error("Budget pool not found");
 
+      // Explicitly rejected = admin decision, never auto-touched.
+      // pending_reapproval = waiting for admin approval, re-evaluate eligibility.
       const allRequests = await BudgetRequest.find({
-        status: { $nin: ["rejected"] }, // leave explicit admin rejections alone
+        status: { $nin: ["rejected"] },
       })
         .session(session)
         .lean();
 
-      // Snapshot previous state for audit log
       const prevBudgetState = {
         totalBudget: budget.totalBudget,
         allocatedAmount: budget.allocatedAmount,
@@ -84,7 +82,7 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         allocatedAmount: r.allocatedAmount,
       }));
 
-      // ─── 3. Sort by priority desc, then createdAt asc ─────────────────
+      // ── 2. Sort by priority desc, then createdAt asc ──────────────────────
       const sorted = [...allRequests].sort((a, b) => {
         const pDiff =
           (PRIORITY_ORDER[b.priorityLevel] ?? 0) -
@@ -93,7 +91,7 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       });
 
-      // ─── 4. Sequential allocation ──────────────────────────────────────
+      // ── 3. Sequential allocation pass ─────────────────────────────────────
       let remaining = budget.totalBudget;
       let totalAllocated = 0;
 
@@ -103,47 +101,65 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         allocatedAmount: number;
         prevStatus: string;
         prevAllocated: number;
+        requiresReapproval: boolean;
       }> = [];
 
       for (const req of sorted) {
         const id = req._id as mongoose.Types.ObjectId;
+        const prevStatus = req.status;
+
         if (req.requestedAmount <= remaining) {
-          updates.push({
-            id,
-            status: "approved",
-            allocatedAmount: req.requestedAmount,
-            prevStatus: req.status,
-            prevAllocated: req.allocatedAmount,
-          });
-          remaining -= req.requestedAmount;
-          totalAllocated += req.requestedAmount;
+          if (REQUIRES_REAPPROVAL.has(prevStatus)) {
+            // Budget now available BUT previously denied — needs admin re-approval.
+            // IMPORTANT: does NOT consume budget (remains uncommitted until admin acts).
+            updates.push({
+              id,
+              status: "pending_reapproval",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: true,
+            });
+            // Do NOT deduct from remaining — pending_reapproval is not committed
+          } else if (prevStatus === "pending_reapproval") {
+            // Still waiting for admin — budget is available, keep status unchanged
+            updates.push({
+              id,
+              status: "pending_reapproval",
+              allocatedAmount: 0,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: false,
+            });
+            // Also does NOT consume budget
+          } else {
+            // pending / approved / under_negotiation → approve normally
+            updates.push({
+              id,
+              status: "approved",
+              allocatedAmount: req.requestedAmount,
+              prevStatus,
+              prevAllocated: req.allocatedAmount,
+              requiresReapproval: false,
+            });
+            remaining -= req.requestedAmount;
+            totalAllocated += req.requestedAmount;
+          }
         } else {
+          // Budget not available — conflicted (pending_reapproval reverts to conflicted)
           updates.push({
             id,
             status: "conflicted",
             allocatedAmount: 0,
-            prevStatus: req.status,
+            prevStatus,
             prevAllocated: req.allocatedAmount,
+            requiresReapproval: false,
           });
         }
       }
 
-      // ─── 5. Batch-write request updates ───────────────────────────────
-      const bulkOps = updates.map((u) => ({
-        updateOne: {
-          filter: { _id: u.id },
-          update: {
-            $set: {
-              status: u.status,
-              allocatedAmount: u.allocatedAmount,
-              version: { $add: ["$version", 1] },
-            },
-          },
-        },
-      }));
-
-      if (bulkOps.length > 0) {
-        // Use individual updates to support $add expression properly
+      // ── 4. Batch-write request updates ────────────────────────────────────
+      if (updates.length > 0) {
         await Promise.all(
           updates.map((u) =>
             BudgetRequest.findByIdAndUpdate(
@@ -155,15 +171,16 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
         );
       }
 
-      // ─── 6. Update budget pool ─────────────────────────────────────────
+      // ── 5. Update budget pool ─────────────────────────────────────────────
       budget.allocatedAmount = totalAllocated;
       budget.remainingAmount = budget.totalBudget - totalAllocated;
       await budget.save({ session });
 
-      // ─── 7. Audit log ─────────────────────────────────────────────────
+      // ── 6. Audit log ──────────────────────────────────────────────────────
       const changedRequests = updates.filter(
         (u) => u.status !== u.prevStatus || u.allocatedAmount !== u.prevAllocated
       );
+      const reapprovalRequests = updates.filter((u) => u.requiresReapproval);
 
       await AuditLog.create(
         [
@@ -173,10 +190,7 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
             actionType: "RECALCULATION",
             entityId: budget._id,
             entityType: "Budget",
-            previousState: {
-              budget: prevBudgetState,
-              requestSummary: prevRequestStates,
-            },
+            previousState: { budget: prevBudgetState, requestSummary: prevRequestStates },
             newState: {
               budget: {
                 totalBudget: budget.totalBudget,
@@ -191,14 +205,13 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
                 newAllocated: u.allocatedAmount,
               })),
             },
-            description: `System recalculation triggered by: ${triggerType}. ${changedRequests.length} request(s) changed status.`,
+            description: `System recalculation triggered by: ${triggerType}. ${changedRequests.length} request(s) changed. ${reapprovalRequests.length} moved to PENDING_REAPPROVAL (budget available — admin approval required).`,
           },
         ],
         { session }
       );
 
-      // ─── 8. Emit Socket.io events (after transaction commits) ─────────
-      // We schedule emission after transaction success
+      // ── 7. Emit Socket.io events ──────────────────────────────────────────
       const budgetSnapshot = budget.toObject();
       const io = getIo();
 
@@ -207,14 +220,15 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
           _id: { $in: updates.map((u) => u.id) },
         }).lean();
 
-        // Emit budget update to all clients
         io.emit("BUDGET_UPDATED", budgetSnapshot);
 
-        // Emit per-request status changes
         for (const req of updatedRequests) {
           io.emit("REQUEST_STATUS_CHANGED", req);
           if (req.status === "conflicted") {
             io.emit("REQUEST_CONFLICTED", req);
+          }
+          if (req.status === "pending_reapproval") {
+            io.emit("REQUEST_REQUIRES_REAPPROVAL", req);
           }
         }
       }
@@ -227,6 +241,7 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
           remaining: budget.remainingAmount,
           approved: updates.filter((u) => u.status === "approved").length,
           conflicted: updates.filter((u) => u.status === "conflicted").length,
+          pendingReapproval: updates.filter((u) => u.status === "pending_reapproval").length,
           changed: changedRequests.length,
         },
         "Recalculation complete"
@@ -240,7 +255,6 @@ async function _doRecalculate(triggerType: TriggerType): Promise<void> {
   }
 }
 
-/** Kept for backward-compat — wraps recalculateSystem */
 export async function runCascadeRecalculation(): Promise<void> {
   return recalculateSystem("MANUAL");
 }

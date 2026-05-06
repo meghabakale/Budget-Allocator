@@ -5,7 +5,8 @@ export type RequestStatus =
   | "approved"
   | "rejected"
   | "conflicted"
-  | "under_negotiation";
+  | "under_negotiation"
+  | "pending_reapproval";
 
 export type PriorityLevel = "High" | "Medium" | "Low";
 
@@ -39,7 +40,7 @@ const BudgetRequestSchema = new Schema<IBudgetRequest>(
     justification: { type: String, required: true },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected", "conflicted", "under_negotiation"],
+      enum: ["pending", "approved", "rejected", "conflicted", "under_negotiation", "pending_reapproval"],
       default: "pending",
     },
     version: { type: Number, default: 1 },

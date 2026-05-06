@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import Layout from "../components/Layout";
 import { api } from "../services/api";
 import { useSocket } from "../context/SocketContext";
+import { formatCurrency, fmtShort, fmtAxis } from "../lib/currency";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from "recharts";
 import {
-  TrendingUp, DollarSign, AlertTriangle, CheckCircle2,
+  TrendingUp, IndianRupee, AlertTriangle, CheckCircle2,
   RefreshCw, Sliders, ChevronDown, ChevronUp, Loader2
 } from "lucide-react";
 
@@ -44,9 +45,6 @@ const LOCATION_COLORS: Record<string, string> = {
   Delhi: "#f59e0b",
   Chennai: "#ef4444",
 };
-
-const fmt = (n: number) =>
-  n >= 1000000 ? `$${(n / 1000000).toFixed(2)}M` : `$${n.toLocaleString()}`;
 
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 
@@ -210,12 +208,12 @@ export default function FinanceDashboard() {
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Total Budget", value: fmt(budget?.totalBudget ?? 0), icon: <DollarSign size={16} />, color: "text-blue-400", bg: "bg-blue-900/20" },
-            { label: "Total Demand", value: fmt(summary?.totalDemand ?? 0), icon: <TrendingUp size={16} />, color: "text-amber-400", bg: "bg-amber-900/20" },
-            { label: "Total Allocated", value: fmt(summary?.totalAllocated ?? 0), icon: <CheckCircle2 size={16} />, color: "text-emerald-400", bg: "bg-emerald-900/20" },
+            { label: "Total Budget", value: fmtShort(budget?.totalBudget ?? 0), icon: <IndianRupee size={16} />, color: "text-blue-400", bg: "bg-blue-900/20" },
+            { label: "Total Demand", value: fmtShort(summary?.totalDemand ?? 0), icon: <TrendingUp size={16} />, color: "text-amber-400", bg: "bg-amber-900/20" },
+            { label: "Total Allocated", value: fmtShort(summary?.totalAllocated ?? 0), icon: <CheckCircle2 size={16} />, color: "text-emerald-400", bg: "bg-emerald-900/20" },
             {
               label: summary?.overDemand ? "Demand Excess" : "Budget Surplus",
-              value: fmt(summary?.demandExcess ?? summary?.surplus ?? 0),
+              value: fmtShort(summary?.demandExcess ?? summary?.surplus ?? 0),
               icon: <AlertTriangle size={16} />,
               color: summary?.overDemand ? "text-red-400" : "text-emerald-400",
               bg: summary?.overDemand ? "bg-red-900/20" : "bg-emerald-900/20",
@@ -235,25 +233,25 @@ export default function FinanceDashboard() {
           <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 flex items-center gap-3">
             <AlertTriangle size={18} className="text-red-400 shrink-0" />
             <p className="text-sm text-red-300">
-              Total demand ({fmt(summary.totalDemand)}) exceeds the budget pool ({fmt(budget?.totalBudget ?? 0)}) by{" "}
-              <strong>{fmt(summary.demandExcess)}</strong>. Run weighted allocation to distribute available budget dynamically.
+              Total demand ({fmtShort(summary.totalDemand)}) exceeds the budget pool ({fmtShort(budget?.totalBudget ?? 0)}) by{" "}
+              <strong>{fmtShort(summary.demandExcess)}</strong>. Run weighted allocation to distribute available budget dynamically.
             </p>
           </div>
         )}
 
         {/* Charts row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Bar chart: demand vs allocation */}
+          {/* Bar chart */}
           <div className="md:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-white mb-4">Demand vs Allocation vs Used by Location</h3>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={barData} barCategoryGap="30%">
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="location" tick={{ fill: "#9ca3af", fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fill: "#9ca3af", fontSize: 11 }} />
+                <YAxis tickFormatter={fmtAxis} tick={{ fill: "#9ca3af", fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
-                  formatter={(val: number) => fmt(val)}
+                  formatter={(val: number) => [formatCurrency(val)]}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, color: "#9ca3af" }} />
                 <Bar dataKey="Demand" fill="#f59e0b" radius={[4, 4, 0, 0]} />
@@ -263,18 +261,19 @@ export default function FinanceDashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Pie chart: budget distribution */}
+          {/* Pie chart */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-white mb-4">Budget Distribution</h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false} style={{ fontSize: 10 }}>
                   {pieData.map((entry) => (
                     <Cell key={entry.name} fill={LOCATION_COLORS[entry.name] ?? "#6b7280"} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }} />
+                <Tooltip formatter={(v: number) => [formatCurrency(v)]} contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }} />
               </PieChart>
             </ResponsiveContainer>
             <div className="mt-2 space-y-1">
@@ -284,7 +283,7 @@ export default function FinanceDashboard() {
                     <div className="w-2 h-2 rounded-full" style={{ background: LOCATION_COLORS[e.name] }} />
                     <span className="text-gray-400">{e.name}</span>
                   </div>
-                  <span className="text-white font-medium">{fmt(e.value)}</span>
+                  <span className="text-white font-medium">{fmtShort(e.value)}</span>
                 </div>
               ))}
             </div>
@@ -315,7 +314,7 @@ export default function FinanceDashboard() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <div className="p-5 border-b border-gray-800">
             <h3 className="text-sm font-semibold text-white">Location Admin Allocations — Manual Override</h3>
-            <p className="text-xs text-gray-500 mt-1">Formula: 50% × Priority + 30% × Demand + 20% × Performance</p>
+            <p className="text-xs text-gray-500 mt-1">Formula: 50% × Priority + 30% × Demand + 20% × Performance · All amounts in ₹ (Indian Rupee)</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -326,10 +325,10 @@ export default function FinanceDashboard() {
                   <th className="text-right p-4">Demand Score</th>
                   <th className="text-right p-4">Perf Score</th>
                   <th className="text-right p-4">Weight Score</th>
-                  <th className="text-right p-4">Demand</th>
-                  <th className="text-right p-4">Allocated</th>
-                  <th className="text-right p-4">Used</th>
-                  <th className="text-right p-4">Remaining</th>
+                  <th className="text-right p-4">Demand (₹)</th>
+                  <th className="text-right p-4">Allocated (₹)</th>
+                  <th className="text-right p-4">Used (₹)</th>
+                  <th className="text-right p-4">Remaining (₹)</th>
                   <th className="text-center p-4">Override</th>
                 </tr>
               </thead>
@@ -350,11 +349,11 @@ export default function FinanceDashboard() {
                     <td className="p-4 text-right">
                       <span className="text-purple-300 font-mono">{a.allocationScore.toFixed(3)}</span>
                     </td>
-                    <td className="p-4 text-right text-gray-300">{fmt(a.totalDemand)}</td>
-                    <td className="p-4 text-right text-blue-300 font-medium">{fmt(a.allocatedBudget)}</td>
-                    <td className="p-4 text-right text-emerald-300">{fmt(a.usedBudget)}</td>
+                    <td className="p-4 text-right text-gray-300">{fmtShort(a.totalDemand)}</td>
+                    <td className="p-4 text-right text-blue-300 font-medium">{fmtShort(a.allocatedBudget)}</td>
+                    <td className="p-4 text-right text-emerald-300">{fmtShort(a.usedBudget)}</td>
                     <td className="p-4 text-right">
-                      <span className={a.remainingBudget < 0 ? "text-red-400" : "text-gray-300"}>{fmt(a.remainingBudget)}</span>
+                      <span className={a.remainingBudget < 0 ? "text-red-400" : "text-gray-300"}>{fmtShort(a.remainingBudget)}</span>
                     </td>
                     <td className="p-4 text-center">
                       {overrideId === a.adminId ? (
@@ -362,8 +361,8 @@ export default function FinanceDashboard() {
                           <input
                             type="number" value={overrideAmount}
                             onChange={(e) => setOverrideAmount(e.target.value)}
-                            className="w-28 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
-                            placeholder="Amount"
+                            className="w-32 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
+                            placeholder="Amount (₹)"
                             autoFocus
                           />
                           <button onClick={() => handleOverride(a.adminId)}

@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams } from "wouter";
 import { useSocket } from "../context/SocketContext";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../services/api";
 import Layout from "../components/Layout";
 import StatusBadge from "../components/StatusBadge";
-import { Send, ArrowLeft, MessageSquare } from "lucide-react";
+import { formatCurrency } from "../lib/currency";
+import { Send, MessageSquare } from "lucide-react";
 import { Link } from "wouter";
 
 interface Message {
@@ -33,12 +34,10 @@ function RequestList({ requests, selectedId }: { requests: Request[]; selectedId
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-gray-800">
         {requests.map((r) => (
-          <Link key={r._id} href={`/negotiation/${r._id}`}>
-            <a className={`block p-4 hover:bg-gray-800 transition-colors ${selectedId === r._id ? "bg-gray-800 border-l-2 border-blue-500" : ""}`}>
-              <p className="text-sm font-medium text-white">{r.departmentName}</p>
-              <p className="text-xs text-gray-500 mt-0.5">${r.requestedAmount.toLocaleString()}</p>
-              <div className="mt-1.5"><StatusBadge status={r.status} /></div>
-            </a>
+          <Link key={r._id} href={`/negotiation/${r._id}`} className={`block p-4 hover:bg-gray-800 transition-colors ${selectedId === r._id ? "bg-gray-800 border-l-2 border-blue-500" : ""}`}>
+            <p className="text-sm font-medium text-white">{r.departmentName}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(r.requestedAmount)}</p>
+            <div className="mt-1.5"><StatusBadge status={r.status} /></div>
           </Link>
         ))}
         {requests.length === 0 && (
@@ -129,7 +128,7 @@ export default function NegotiationPanel() {
                     <StatusBadge status={request.status} />
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    ${request.requestedAmount.toLocaleString()} requested — {request.justification}
+                    {formatCurrency(request.requestedAmount)} requested — {request.justification}
                   </p>
                 </div>
               </div>
@@ -148,7 +147,7 @@ export default function NegotiationPanel() {
                       <div className={`max-w-sm ${isMe ? "items-end" : "items-start"} flex flex-col gap-1`}>
                         {!isMe && (
                           <span className="text-xs text-gray-500 px-1">
-                            {msg.senderName} <span className="text-gray-600">({msg.senderRole.replace("_", " ")})</span>
+                            {msg.senderName} <span className="text-gray-600">({msg.senderRole.replace(/_/g, " ")})</span>
                           </span>
                         )}
                         <div className={`px-4 py-2.5 rounded-2xl text-sm ${isMe ? "bg-blue-600 text-white rounded-br-sm" : "bg-gray-800 text-gray-100 rounded-bl-sm"}`}>

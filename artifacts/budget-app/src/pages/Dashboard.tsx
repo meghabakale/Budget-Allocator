@@ -4,7 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { api } from "../services/api";
 import Layout from "../components/Layout";
 import StatusBadge from "../components/StatusBadge";
-import { TrendingUp, AlertTriangle, CheckCircle, Clock, DollarSign, Users } from "lucide-react";
+import { formatCurrency } from "../lib/currency";
+import { TrendingUp, AlertTriangle, CheckCircle, Clock, IndianRupee, Users, RefreshCw } from "lucide-react";
 
 interface Budget {
   totalBudget: number;
@@ -30,7 +31,7 @@ function StatCard({ icon, label, value, sub, color }: { icon: React.ReactNode; l
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs text-gray-500 mb-1">{label}</p>
-          <p className={`text-2xl font-bold ${color}`}>{value}</p>
+          <p className={`text-xl font-bold ${color}`}>{value}</p>
           {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
         </div>
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color.replace("text-", "bg-").replace("400", "900/50")}`}>
@@ -62,11 +63,13 @@ export default function Dashboard() {
     socket.on("REQUEST_CREATED", handle);
     socket.on("REQUEST_UPDATED", handle);
     socket.on("REQUEST_STATUS_CHANGED", handle);
+    socket.on("REQUEST_REQUIRES_REAPPROVAL", handle);
     return () => {
       socket.off("BUDGET_UPDATED");
       socket.off("REQUEST_CREATED", handle);
       socket.off("REQUEST_UPDATED", handle);
       socket.off("REQUEST_STATUS_CHANGED", handle);
+      socket.off("REQUEST_REQUIRES_REAPPROVAL", handle);
     };
   }, [socket, load]);
 
@@ -75,6 +78,7 @@ export default function Dashboard() {
     approved: requests.filter((r) => r.status === "approved").length,
     conflicted: requests.filter((r) => r.status === "conflicted" || r.status === "under_negotiation").length,
     rejected: requests.filter((r) => r.status === "rejected").length,
+    pendingReapproval: requests.filter((r) => r.status === "pending_reapproval").length,
   };
 
   const allocPercent = budget ? Math.round((budget.allocatedAmount / budget.totalBudget) * 100) : 0;
@@ -93,9 +97,9 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={<DollarSign size={18} />} label="Total Budget" value={`$${budget?.totalBudget?.toLocaleString() || 0}`} color="text-blue-400" />
-          <StatCard icon={<TrendingUp size={18} />} label="Allocated" value={`$${budget?.allocatedAmount?.toLocaleString() || 0}`} sub={`${allocPercent}% used`} color="text-green-400" />
-          <StatCard icon={<Clock size={18} />} label="Remaining" value={`$${budget?.remainingAmount?.toLocaleString() || 0}`} color="text-yellow-400" />
+          <StatCard icon={<IndianRupee size={18} />} label="Total Budget" value={budget ? formatCurrency(budget.totalBudget) : "₹0"} color="text-blue-400" />
+          <StatCard icon={<TrendingUp size={18} />} label="Allocated" value={budget ? formatCurrency(budget.allocatedAmount) : "₹0"} sub={`${allocPercent}% used`} color="text-green-400" />
+          <StatCard icon={<Clock size={18} />} label="Remaining" value={budget ? formatCurrency(budget.remainingAmount) : "₹0"} color="text-yellow-400" />
           <StatCard icon={<Users size={18} />} label="Total Requests" value={String(requests.length)} color="text-purple-400" />
         </div>
 
@@ -113,24 +117,45 @@ export default function Dashboard() {
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-2">
-            <span>$0</span>
-            <span>${budget?.totalBudget?.toLocaleString()}</span>
+            <span>₹0</span>
+            <span>{budget ? formatCurrency(budget.totalBudget) : "₹0"}</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Status counts */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
             { label: "Pending", count: statusCounts.pending, color: "border-blue-700 text-blue-400" },
             { label: "Approved", count: statusCounts.approved, color: "border-green-700 text-green-400" },
             { label: "Conflicts", count: statusCounts.conflicted, color: "border-yellow-700 text-yellow-400" },
             { label: "Rejected", count: statusCounts.rejected, color: "border-red-700 text-red-400" },
+            {
+              label: "Re-Approval",
+              count: statusCounts.pendingReapproval,
+              color: statusCounts.pendingReapproval > 0
+                ? "border-orange-600 text-orange-400"
+                : "border-gray-700 text-gray-500",
+            },
           ].map((s) => (
-            <div key={s.label} className={`bg-gray-900 border ${s.color.split(" ")[0]} rounded-xl p-4 text-center`}>
+            <div key={s.label} className={`bg-gray-900 border ${s.color.split(" ")[0]} rounded-xl p-4 text-center ${s.label === "Re-Approval" && s.count > 0 ? "ring-1 ring-orange-600/40" : ""}`}>
               <p className={`text-3xl font-bold ${s.color.split(" ")[1]}`}>{s.count}</p>
               <p className="text-xs text-gray-500 mt-1">{s.label}</p>
             </div>
           ))}
         </div>
+
+        {/* Pending Re-Approval alert */}
+        {statusCounts.pendingReapproval > 0 && (
+          <div className="flex items-center gap-3 p-4 bg-orange-900/20 border border-orange-600/40 rounded-xl">
+            <RefreshCw size={16} className="text-orange-400 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-orange-300">Budget Now Available — Admin Approval Required</p>
+              <p className="text-xs text-orange-400/80 mt-0.5">
+                {statusCounts.pendingReapproval} request(s) previously conflicted can now be funded. Admin must manually approve or reject each one.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="bg-gray-900 border border-gray-800 rounded-xl">
           <div className="p-4 border-b border-gray-800">
@@ -144,7 +169,7 @@ export default function Dashboard() {
                   <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{req.justification}</p>
                 </div>
                 <div className="flex items-center gap-3 ml-4">
-                  <span className="text-sm font-semibold text-white">${req.requestedAmount.toLocaleString()}</span>
+                  <span className="text-sm font-semibold text-white">{formatCurrency(req.requestedAmount)}</span>
                   <StatusBadge status={req.status} />
                 </div>
               </div>
