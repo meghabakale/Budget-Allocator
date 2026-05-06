@@ -70,9 +70,18 @@ export const api = {
     list: () => request<Record<string, unknown>[]>("/audit"),
   },
   export: {
-    download: (type: string, format: string) => {
+    download: async (type: string, format: string): Promise<Blob> => {
       const token = getToken();
-      window.open(`${BASE}/export/${type}?format=${format}&token=${token}`, "_blank");
+      const res = await fetch(`${BASE}/export/${type}?format=${format}`, {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error((err as { error?: string }).error || "Export failed");
+      }
+      return res.blob();
     },
   },
   finance: {

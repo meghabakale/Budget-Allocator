@@ -4,7 +4,22 @@ import { api } from "../services/api";
 import Layout from "../components/Layout";
 import StatusBadge, { PriorityBadge } from "../components/StatusBadge";
 import { formatCurrency } from "../lib/currency";
-import { CheckCircle, XCircle, RotateCcw, IndianRupee, Edit2, X, Loader2, Download } from "lucide-react";
+import { CheckCircle, RotateCcw, IndianRupee, Edit2, X, Loader2, Download } from "lucide-react";
+
+function datestamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function triggerBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 interface Budget {
   totalBudget: number;
@@ -123,6 +138,12 @@ function ResolveModal({ request, onClose, onDone }: { request: Request; onClose:
   );
 }
 
+const EXPORT_FILENAMES: Record<string, string> = {
+  budget: "budget-report",
+  requests: "requests-report",
+  audit: "audit-log",
+};
+
 export default function AdminPanel() {
   const { socket } = useSocket();
   const [requests, setRequests] = useState<Request[]>([]);
@@ -130,6 +151,13 @@ export default function AdminPanel() {
   const [resolveTarget, setResolveTarget] = useState<Request | null>(null);
   const [budgetEdit, setBudgetEdit] = useState(false);
   const [newBudget, setNewBudget] = useState("");
+  const [exportLoading, setExportLoading] = useState<Record<string, boolean>>({});
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showToast = (msg: string, ok: boolean) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const load = useCallback(async () => {
     const [r, b] = await Promise.all([api.requests.list(), api.budget.get()]);
@@ -152,6 +180,26 @@ export default function AdminPanel() {
     };
   }, [socket, load]);
 
+  const doExport = async (type: string, fmt: string) => {
+    const key = `${type}-${fmt}`;
+    if (exportLoading[key]) return;
+    setExportLoading((p) => ({ ...p, [key]: true }));
+    try {
+      const blob = await api.export.download(type, fmt);
+      if (!blob || blob.size === 0) {
+        showToast(`No data available to export`, false);
+        return;
+      }
+      const basename = EXPORT_FILENAMES[type] ?? type;
+      triggerBlob(blob, `${basename}-${datestamp()}.${fmt}`);
+      showToast(`${basename.replace("-", " ")} exported as ${fmt.toUpperCase()}`, true);
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Export failed", false);
+    } finally {
+      setExportLoading((p) => ({ ...p, [key]: false }));
+    }
+  };
+
   const handleRollback = async (id: string) => {
     if (!confirm("Roll back this request to pending?")) return;
     await api.conflicts.rollback(id);
@@ -168,6 +216,14 @@ export default function AdminPanel() {
 
   return (
     <Layout>
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-sm font-medium shadow-xl transition-all ${
+          toast.ok ? "bg-emerald-700 text-white" : "bg-red-700 text-white"
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -175,21 +231,27 @@ export default function AdminPanel() {
             <p className="text-gray-400 text-sm mt-0.5">Manage budget, resolve conflicts, export data</p>
           </div>
           <div className="flex gap-2">
-            {["budget", "requests", "audit"].map((type) => (
+            {(["budget", "requests", "audit"] as const).map((type) => (
               <div key={type} className="relative group">
-                <button className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition-colors">
+                <button className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition-colors capitalize">
                   <Download size={13} /> Export {type}
                 </button>
-                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg py-1 hidden group-hover:block z-10 w-32">
-                  {["json", "csv"].map((fmt) => (
-                    <button
-                      key={fmt}
-                      onClick={() => api.export.download(type, fmt)}
-                      className="block w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700 uppercase"
-                    >
-                      {fmt}
-                    </button>
-                  ))}
+                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg py-1 hidden group-hover:block z-10 w-28">
+                  {(["json", "csv"] as const).map((fmt) => {
+                    const key = `${type}-${fmt}`;
+                    const busy = !!exportLoading[key];
+                    return (
+                      <button
+                        key={fmt}
+                        onClick={() => doExport(type, fmt)}
+                        disabled={busy}
+                        className="flex items-center gap-1.5 w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-700 uppercase disabled:opacity-50"
+                      >
+                        {busy ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
+                        {fmt}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
