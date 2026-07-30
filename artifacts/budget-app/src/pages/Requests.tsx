@@ -240,15 +240,15 @@ export default function Requests() {
         </div>
       )}
 
-      <div className="p-6 space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">Budget Requests</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{user?.department} department</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Budget Requests</h1>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">{user?.department} department</p>
           </div>
           <button
             onClick={() => { setEditTarget(undefined); setShowModal(true); }}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors self-start sm:self-auto"
           >
             <Plus size={16} /> New Request
           </button>
@@ -256,7 +256,7 @@ export default function Requests() {
 
         {/* Admin queues */}
         {isAdmin && criticalRequests.length > 0 && (
-          <div className="p-3 bg-purple-900/20 border border-purple-600/40 rounded-xl">
+          <div className="p-3.5 bg-purple-900/20 border border-purple-600/40 rounded-xl">
             <p className="text-xs font-semibold text-purple-300 uppercase tracking-wider mb-1">
               Critical — {criticalRequests.length} urgent request(s) requiring immediate attention
             </p>
@@ -267,7 +267,7 @@ export default function Requests() {
         )}
 
         {isAdmin && pendingReapprovalRequests.length > 0 && (
-          <div className="p-3 bg-cyan-900/20 border border-cyan-600/40 rounded-xl">
+          <div className="p-3.5 bg-cyan-900/20 border border-cyan-600/40 rounded-xl">
             <p className="text-xs font-semibold text-cyan-300 uppercase tracking-wider mb-1">
               Pending Re-Approval — {pendingReapprovalRequests.length} request(s) with budget now available
             </p>
@@ -276,9 +276,9 @@ export default function Requests() {
         )}
 
         {/* Main requests table */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[680px]">
               <thead>
                 <tr className="border-b border-gray-800">
                   <th className="text-left text-xs text-gray-500 px-4 py-3">Department</th>
@@ -304,7 +304,7 @@ export default function Requests() {
                       <p className="text-xs text-gray-500 line-clamp-1 max-w-xs">{req.justification}</p>
                       {req.adminNote && (
                         <p className="text-xs text-amber-400/80 mt-1 flex items-start gap-1">
-                          <span className="shrink-0">Admin:</span>
+                          <span className="shrink-0 font-medium">Admin:</span>
                           <span className="italic">{req.adminNote}</span>
                         </p>
                       )}
@@ -329,17 +329,17 @@ export default function Requests() {
                         {req.status === "pending" && (
                           <button
                             onClick={() => { setEditTarget(req); setShowModal(true); }}
-                            className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
                             title="Edit request"
                           ><Edit2 size={14} /></button>
                         )}
-                        <Link href={`/negotiation/${req._id}`} className="p-1.5 text-gray-500 hover:text-yellow-400 hover:bg-yellow-900/20 rounded-lg transition-colors inline-flex" title="Open negotiation">
+                        <Link href={`/negotiation/${req._id}`} className="p-1.5 text-gray-400 hover:text-yellow-400 hover:bg-yellow-900/20 rounded-lg transition-colors inline-flex" title="Open negotiation">
                           <MessageSquare size={14} />
                         </Link>
                         {(req.status === "pending" || req.status === "rejected") && (
                           <button
                             onClick={() => handleDelete(req._id)}
-                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
                             title="Delete request"
                           ><Trash2 size={14} /></button>
                         )}
@@ -357,16 +357,16 @@ export default function Requests() {
 
         {/* Summary counts for dept heads */}
         {!isAdmin && requests.length > 0 && (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: "Pending", count: pendingRequests.length, color: "text-blue-400" },
               { label: "Negotiation", count: negotiationRequests.length, color: "text-yellow-400" },
               { label: "Approved", count: otherRequests.filter((r) => r.status === "approved").length, color: "text-green-400" },
               { label: "Rejected", count: otherRequests.filter((r) => r.status === "rejected").length, color: "text-gray-400" },
             ].map((s) => (
-              <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
-                <p className={`text-xl font-bold ${s.color}`}>{s.count}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+              <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4 text-center">
+                <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.count}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>

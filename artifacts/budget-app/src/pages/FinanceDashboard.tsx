@@ -157,56 +157,56 @@ export default function FinanceDashboard() {
         }`}>{toast.msg}</div>
       )}
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <TrendingUp size={24} className="text-purple-400" />
-              Finance Manager Dashboard
+            <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+              <TrendingUp size={24} className="text-purple-400 shrink-0" />
+              <span>Finance Manager Dashboard</span>
             </h1>
-            <p className="text-gray-400 text-sm mt-1">Weighted dynamic budget distribution across locations</p>
+            <p className="text-gray-400 text-xs sm:text-sm mt-1">Weighted dynamic budget distribution across locations</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 self-start sm:self-auto">
             <button onClick={() => setShowPriorityPanel(!showPriorityPanel)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">
-              <Sliders size={14} />Priority Scores
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs sm:text-sm transition-colors">
+              <Sliders size={14} /><span>Priority Scores</span>
               {showPriorityPanel ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
             <button onClick={handleRunAllocation} disabled={allocating}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors">
               {allocating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-              Run Weighted Allocation
+              <span>Run Weighted Allocation</span>
             </button>
           </div>
         </div>
 
         {/* Priority Score Panel */}
         {showPriorityPanel && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+            <h3 className="text-xs sm:text-sm font-semibold text-white mb-4">
               Set Strategic Priority Scores (1–10) — Higher score = more budget share
             </h3>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
               {allocs.map((a) => (
-                <div key={a.adminId} className="space-y-2">
-                  <label className="text-xs text-gray-400">{a.location}</label>
+                <div key={a.adminId} className="space-y-1.5 bg-gray-800/40 p-3 rounded-lg border border-gray-700/40">
+                  <label className="text-xs font-medium text-gray-300 block">{a.location}</label>
                   <input
                     type="number" min={1} max={10} step={1}
                     value={priorityEdits[a.adminId] ?? a.priorityScore}
                     onChange={(e) => setPriorityEdits({ ...priorityEdits, [a.adminId]: Number(e.target.value) })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-purple-500"
                   />
-                  <p className="text-xs text-gray-600">Perf: {pct(a.performanceScore)}</p>
+                  <p className="text-[11px] text-gray-400">Perf Score: {pct(a.performanceScore)}</p>
                 </div>
               ))}
             </div>
-            <p className="text-xs text-gray-600 mt-3">Click "Run Weighted Allocation" to apply changes.</p>
+            <p className="text-xs text-gray-400 mt-3">Click "Run Weighted Allocation" to apply changes.</p>
           </div>
         )}
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
             { label: "Total Budget", value: fmtShort(budget?.totalBudget ?? 0), icon: <IndianRupee size={16} />, color: "text-blue-400", bg: "bg-blue-900/20" },
             { label: "Total Demand", value: fmtShort(summary?.totalDemand ?? 0), icon: <TrendingUp size={16} />, color: "text-amber-400", bg: "bg-amber-900/20" },
@@ -219,20 +219,20 @@ export default function FinanceDashboard() {
               bg: summary?.overDemand ? "bg-red-900/20" : "bg-emerald-900/20",
             },
           ].map((card) => (
-            <div key={card.label} className={`${card.bg} border border-gray-800 rounded-xl p-4`}>
-              <div className={`flex items-center gap-2 ${card.color} mb-2`}>
+            <div key={card.label} className={`${card.bg} border border-gray-800 rounded-xl p-3.5 sm:p-4`}>
+              <div className={`flex items-center gap-2 ${card.color} mb-1.5`}>
                 {card.icon}
-                <span className="text-xs font-medium">{card.label}</span>
+                <span className="text-xs font-medium truncate">{card.label}</span>
               </div>
-              <p className="text-xl font-bold text-white">{card.value}</p>
+              <p className="text-lg sm:text-xl font-bold text-white">{card.value}</p>
             </div>
           ))}
         </div>
 
         {summary?.overDemand && (
-          <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 flex items-center gap-3">
-            <AlertTriangle size={18} className="text-red-400 shrink-0" />
-            <p className="text-sm text-red-300">
+          <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-4 flex items-start sm:items-center gap-3">
+            <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5 sm:mt-0" />
+            <p className="text-xs sm:text-sm text-red-300">
               Total demand ({fmtShort(summary.totalDemand)}) exceeds the budget pool ({fmtShort(budget?.totalBudget ?? 0)}) by{" "}
               <strong>{fmtShort(summary.demandExcess)}</strong>. Run weighted allocation to distribute available budget dynamically.
             </p>
@@ -240,33 +240,35 @@ export default function FinanceDashboard() {
         )}
 
         {/* Charts row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Bar chart */}
-          <div className="md:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Demand vs Allocation vs Used by Location</h3>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={barData} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="location" tick={{ fill: "#9ca3af", fontSize: 12 }} />
-                <YAxis tickFormatter={fmtAxis} tick={{ fill: "#9ca3af", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
-                  formatter={(val: number) => [formatCurrency(val)]}
-                />
-                <Legend wrapperStyle={{ fontSize: 12, color: "#9ca3af" }} />
-                <Bar dataKey="Demand" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Allocated" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Used" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+            <h3 className="text-xs sm:text-sm font-semibold text-white mb-4">Demand vs Allocation vs Used by Location</h3>
+            <div className="w-full overflow-x-auto">
+              <ResponsiveContainer width="100%" height={260} minWidth={300}>
+                <BarChart data={barData} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="location" tick={{ fill: "#9ca3af", fontSize: 11 }} />
+                  <YAxis tickFormatter={fmtAxis} tick={{ fill: "#9ca3af", fontSize: 10 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
+                    formatter={(val: number) => [formatCurrency(val)]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
+                  <Bar dataKey="Demand" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Allocated" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Used" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* Pie chart */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-white mb-4">Budget Distribution</h3>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+            <h3 className="text-xs sm:text-sm font-semibold text-white mb-4">Budget Distribution</h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                <Pie data={pieData} cx="50%" cy="50%" outerRadius={75} dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false} style={{ fontSize: 10 }}>
                   {pieData.map((entry) => (
@@ -291,33 +293,33 @@ export default function FinanceDashboard() {
         </div>
 
         {/* Radar chart */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4">Weighted Score Components by Location (% scale)</h3>
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+          <h3 className="text-xs sm:text-sm font-semibold text-white mb-4">Weighted Score Components by Location (% scale)</h3>
           <ResponsiveContainer width="100%" height={260}>
             <RadarChart data={radarData}>
               <PolarGrid stroke="#374151" />
-              <PolarAngleAxis dataKey="location" tick={{ fill: "#9ca3af", fontSize: 12 }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} />
+              <PolarAngleAxis dataKey="location" tick={{ fill: "#9ca3af", fontSize: 11 }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 9 }} />
               {["Priority", "Demand", "Performance", "Score"].map((key, i) => (
                 <Radar key={key} name={key} dataKey={key}
                   stroke={["#6366f1", "#f59e0b", "#10b981", "#ef4444"][i]}
                   fill={["#6366f1", "#f59e0b", "#10b981", "#ef4444"][i]}
                   fillOpacity={0.1} />
               ))}
-              <Legend wrapperStyle={{ fontSize: 12, color: "#9ca3af" }} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#9ca3af" }} />
               <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Admin allocation table */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="p-5 border-b border-gray-800">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-sm">
+          <div className="p-4 sm:p-5 border-b border-gray-800">
             <h3 className="text-sm font-semibold text-white">Location Admin Allocations — Manual Override</h3>
             <p className="text-xs text-gray-500 mt-1">Formula: 50% × Priority + 30% × Demand + 20% × Performance · All amounts in ₹ (Indian Rupee)</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[850px]">
               <thead>
                 <tr className="border-b border-gray-800 text-xs text-gray-500 uppercase">
                   <th className="text-left p-4">Location</th>
@@ -342,12 +344,12 @@ export default function FinanceDashboard() {
                       </div>
                     </td>
                     <td className="p-4 text-right">
-                      <span className="px-2 py-0.5 rounded bg-gray-800 text-blue-300 font-mono">{a.priorityScore}/10</span>
+                      <span className="px-2 py-0.5 rounded bg-gray-800 text-blue-300 font-mono text-xs">{a.priorityScore}/10</span>
                     </td>
-                    <td className="p-4 text-right text-amber-400">{pct(a.demandScore)}</td>
-                    <td className="p-4 text-right text-emerald-400">{pct(a.performanceScore)}</td>
+                    <td className="p-4 text-right text-amber-400 font-mono text-xs">{pct(a.demandScore)}</td>
+                    <td className="p-4 text-right text-emerald-400 font-mono text-xs">{pct(a.performanceScore)}</td>
                     <td className="p-4 text-right">
-                      <span className="text-purple-300 font-mono">{a.allocationScore.toFixed(3)}</span>
+                      <span className="text-purple-300 font-mono text-xs">{a.allocationScore.toFixed(3)}</span>
                     </td>
                     <td className="p-4 text-right text-gray-300">{fmtShort(a.totalDemand)}</td>
                     <td className="p-4 text-right text-blue-300 font-medium">{fmtShort(a.allocatedBudget)}</td>
@@ -361,7 +363,7 @@ export default function FinanceDashboard() {
                           <input
                             type="number" value={overrideAmount}
                             onChange={(e) => setOverrideAmount(e.target.value)}
-                            className="w-32 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
+                            className="w-28 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs text-white"
                             placeholder="Amount (₹)"
                             autoFocus
                           />

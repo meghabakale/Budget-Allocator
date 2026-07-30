@@ -46,7 +46,7 @@ export async function exportBudget(format: string): Promise<{ data: string; cont
   }
 
   const row = {
-    ...(budget as Record<string, unknown>),
+    ...(budget as unknown as Record<string, unknown>),
     totalBudget_formatted: fmtINR(budget.totalBudget),
     allocatedAmount_formatted: fmtINR(budget.allocatedAmount),
     remainingAmount_formatted: fmtINR(budget.remainingAmount),

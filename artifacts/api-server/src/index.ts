@@ -5,8 +5,7 @@ import { connectDatabase } from "./config/database.js";
 import { initSocket } from "./sockets/index.js";
 import { seedDatabase } from "./services/seedService.js";
 
-const rawPort = process.env["PORT"];
-if (!rawPort) throw new Error("PORT environment variable is required but was not provided.");
+const rawPort = process.env["PORT"] || "8080";
 const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT value: "${rawPort}"`);
 

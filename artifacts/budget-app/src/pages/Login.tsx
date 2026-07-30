@@ -54,30 +54,30 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <IndianRupee size={32} />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-blue-600 rounded-2xl mb-3 sm:mb-4">
+            <IndianRupee size={28} className="sm:w-8 sm:h-8" />
           </div>
-          <h1 className="text-3xl font-bold text-white">BudgetFlow</h1>
-          <p className="text-gray-400 mt-1">Multi-Admin Collaborative Budget System</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white">BudgetFlow</h1>
+          <p className="text-xs sm:text-sm text-gray-400 mt-1">Multi-Admin Collaborative Budget System</p>
         </div>
 
-        <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8">
+        <div className="bg-gray-900 rounded-2xl border border-gray-800 p-5 sm:p-8 shadow-xl">
           <div className="flex rounded-lg bg-gray-800 p-1 mb-6">
             <button
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${!isRegister ? "bg-blue-600 text-white" : "text-gray-400"}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${!isRegister ? "bg-blue-600 text-white shadow-xs" : "text-gray-400 hover:text-white"}`}
               onClick={() => { setIsRegister(false); setError(""); }}
             >Login</button>
             <button
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${isRegister ? "bg-blue-600 text-white" : "text-gray-400"}`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${isRegister ? "bg-blue-600 text-white shadow-xs" : "text-gray-400 hover:text-white"}`}
               onClick={() => { setIsRegister(true); setError(""); }}
             >Register</button>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm">{error}</div>
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg text-red-300 text-sm break-words">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -101,22 +101,24 @@ export default function Login() {
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                     placeholder="Enter email" required />
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Department</label>
-                  <input type="text" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                    placeholder="e.g. Engineering" />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Location</label>
-                  <select value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                    <option value="">Select location</option>
-                    <option value="Bangalore">Bangalore</option>
-                    <option value="Pune">Pune</option>
-                    <option value="Delhi">Delhi</option>
-                    <option value="Chennai">Chennai</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Department</label>
+                    <input type="text" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      placeholder="e.g. Engineering" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Location</label>
+                    <select value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                      <option value="">Select location</option>
+                      <option value="Bangalore">Bangalore</option>
+                      <option value="Pune">Pune</option>
+                      <option value="Delhi">Delhi</option>
+                      <option value="Chennai">Chennai</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Role</label>
@@ -143,17 +145,17 @@ export default function Login() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-gray-800">
-            <p className="text-xs text-gray-500 text-center mb-3">Quick login — click any credential</p>
-            <div className="grid grid-cols-3 gap-2">
+            <p className="text-xs text-gray-400 text-center mb-3">Quick login — click any demo account</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {DEMO_USERS.map((d) => (
                 <button key={d.u} onClick={() => setForm({ ...form, username: d.u, password: d.p })}
-                  className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1.5 rounded-lg transition-colors text-left">
-                  <span className={d.color + " font-medium"}>{d.label}</span><br />
-                  <span className="text-gray-500">{d.u}</span>
+                  className="text-xs bg-gray-800 hover:bg-gray-750 border border-gray-700/50 hover:border-blue-500/50 text-gray-300 p-2.5 rounded-lg transition-all text-left group">
+                  <span className={d.color + " font-semibold group-hover:underline"}>{d.label}</span><br />
+                  <span className="text-gray-500 text-[11px] font-mono">{d.u}</span>
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-600 text-center mt-2">Finance/Admin: admin123 · Dept Heads: password123</p>
+            <p className="text-[11px] text-gray-500 text-center mt-3">Finance/Admin: admin123 · Dept Heads: password123</p>
           </div>
         </div>
       </div>

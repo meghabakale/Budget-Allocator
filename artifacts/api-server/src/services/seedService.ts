@@ -11,7 +11,15 @@ const LOCATIONS = [
   { name: "Chennai",   username: "chennai_admin", email: "chennai@budgetapp.com", priorityScore: 6, performanceScore: 0.65 },
 ];
 
-const DEPT_HEADS = [
+const DEPT_HEADS: Array<{
+  dept: string;
+  location: string;
+  username: string;
+  email: string;
+  amt: number;
+  priority: "High" | "Medium" | "Low";
+  just: string;
+}> = [
   { dept: "Engineering",  location: "Bangalore", username: "blr_eng",    email: "blr.eng@budgetapp.com",  amt: 300000, priority: "High",   just: "Cloud infra + AI tooling upgrade" },
   { dept: "Product",      location: "Bangalore", username: "blr_prod",   email: "blr.prod@budgetapp.com", amt: 150000, priority: "High",   just: "Product roadmap tooling and research" },
   { dept: "Engineering",  location: "Pune",      username: "pune_eng",   email: "pune.eng@budgetapp.com", amt: 200000, priority: "High",   just: "Development infrastructure scaling" },
@@ -23,11 +31,18 @@ const DEPT_HEADS = [
 ];
 
 export async function seedDatabase(): Promise<void> {
-  const existingUsers = await User.countDocuments();
-  if (existingUsers > 0) {
-    logger.info("Database already seeded, skipping");
+  const financeMgr = await User.findOne({ username: "finance_mgr" });
+  if (financeMgr) {
+    logger.info("Database already seeded with finance_mgr, skipping");
     return;
   }
+
+  await Promise.all([
+    User.deleteMany({}),
+    Budget.deleteMany({}),
+    BudgetRequest.deleteMany({}),
+    AdminAllocation.deleteMany({}),
+  ]);
 
   logger.info("Seeding database with multi-admin architecture...");
 

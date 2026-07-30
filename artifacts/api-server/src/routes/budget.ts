@@ -46,8 +46,8 @@ router.put("/update", authenticate, requireFinanceManager, async (req: AuthReque
       actionType: "BUDGET_UPDATED",
       entityId: budget._id,
       entityType: "Budget",
-      previousState: prev as Record<string, unknown>,
-      newState: budget.toObject() as Record<string, unknown>,
+      previousState: prev as unknown as Record<string, unknown>,
+      newState: budget.toObject() as unknown as Record<string, unknown>,
       description: `Total budget changed from $${prev.totalBudget.toLocaleString()} to $${totalBudget.toLocaleString()} by ${req.user!.username}`,
     });
 

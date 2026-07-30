@@ -17,7 +17,7 @@ router.get("/departments", authenticate, requireLocationAdmin, async (req: AuthR
     const location = req.user!.location;
     const isGlobal = ["finance_manager", "admin"].includes(req.user!.role);
     const filter = isGlobal ? { role: "department_head" } : { role: "department_head", location };
-    const users = await User.find(filter).select("-password").sort({ department: 1 });
+    const users = await User.find(filter as any).select("-password").sort({ department: 1 });
     res.json(users);
   } catch {
     res.status(500).json({ error: "Failed to fetch departments" });
@@ -78,8 +78,8 @@ router.post("/demand", authenticate, requireLocationAdmin, async (req: AuthReque
       actionType: "ADMIN_DEMAND_SUBMITTED",
       entityId: alloc._id,
       entityType: "AdminAllocation",
-      previousState: prev as Record<string, unknown>,
-      newState: alloc.toObject() as Record<string, unknown>,
+      previousState: prev as unknown as Record<string, unknown>,
+      newState: alloc.toObject() as unknown as Record<string, unknown>,
       description: `${req.user!.location} admin submitted demand of ₹${demandAmount.toLocaleString("en-IN")}${note ? `: ${note}` : ""}`,
     });
 

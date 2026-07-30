@@ -85,28 +85,28 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-gray-400 text-sm mt-0.5">Welcome back, {user?.username}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Dashboard</h1>
+            <p className="text-gray-400 text-xs sm:text-sm mt-0.5">Welcome back, {user?.username}</p>
           </div>
-          <span className="text-xs text-gray-500 bg-gray-800 px-3 py-1.5 rounded-full">
+          <span className="self-start sm:self-auto text-xs text-gray-400 bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-full font-mono">
             FY {budget?.fiscalYear || new Date().getFullYear()}
           </span>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <StatCard icon={<IndianRupee size={18} />} label="Total Budget" value={budget ? formatCurrency(budget.totalBudget) : "₹0"} color="text-blue-400" />
           <StatCard icon={<TrendingUp size={18} />} label="Allocated" value={budget ? formatCurrency(budget.allocatedAmount) : "₹0"} sub={`${allocPercent}% used`} color="text-green-400" />
           <StatCard icon={<Clock size={18} />} label="Remaining" value={budget ? formatCurrency(budget.remainingAmount) : "₹0"} color="text-yellow-400" />
           <StatCard icon={<Users size={18} />} label="Total Requests" value={String(requests.length)} color="text-purple-400" />
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-medium text-white">Budget Utilization</h3>
-            <span className="text-sm text-gray-400">{allocPercent}%</span>
+            <span className="text-sm text-gray-400 font-semibold">{allocPercent}%</span>
           </div>
           <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
             <div
@@ -116,14 +116,14 @@ export default function Dashboard() {
               style={{ width: `${allocPercent}%` }}
             />
           </div>
-          <div className="flex justify-between text-xs text-gray-500 mt-2">
+          <div className="flex justify-between text-xs text-gray-500 mt-2 font-mono">
             <span>₹0</span>
             <span>{budget ? formatCurrency(budget.totalBudget) : "₹0"}</span>
           </div>
         </div>
 
         {/* Status counts */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
             { label: "Pending", count: statusCounts.pending, color: "border-blue-700 text-blue-400" },
             { label: "Approved", count: statusCounts.approved, color: "border-green-700 text-green-400" },
@@ -137,19 +137,19 @@ export default function Dashboard() {
                 : "border-gray-700 text-gray-500",
             },
           ].map((s) => (
-            <div key={s.label} className={`bg-gray-900 border ${s.color.split(" ")[0]} rounded-xl p-4 text-center ${s.label === "Re-Approval" && s.count > 0 ? "ring-1 ring-orange-600/40" : ""}`}>
-              <p className={`text-3xl font-bold ${s.color.split(" ")[1]}`}>{s.count}</p>
-              <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+            <div key={s.label} className={`bg-gray-900 border ${s.color.split(" ")[0]} rounded-xl p-3.5 sm:p-4 text-center ${s.label === "Re-Approval" && s.count > 0 ? "ring-1 ring-orange-600/40" : ""}`}>
+              <p className={`text-2xl sm:text-3xl font-bold ${s.color.split(" ")[1]}`}>{s.count}</p>
+              <p className="text-xs text-gray-400 mt-1 truncate">{s.label}</p>
             </div>
           ))}
         </div>
 
         {/* Pending Re-Approval alert */}
         {statusCounts.pendingReapproval > 0 && (
-          <div className="flex items-center gap-3 p-4 bg-orange-900/20 border border-orange-600/40 rounded-xl">
-            <RefreshCw size={16} className="text-orange-400 shrink-0" />
+          <div className="flex items-start sm:items-center gap-3 p-4 bg-orange-900/20 border border-orange-600/40 rounded-xl">
+            <RefreshCw size={18} className="text-orange-400 shrink-0 mt-0.5 sm:mt-0" />
             <div>
-              <p className="text-sm font-semibold text-orange-300">Budget Now Available — Admin Approval Required</p>
+              <p className="text-xs sm:text-sm font-semibold text-orange-300">Budget Now Available — Admin Approval Required</p>
               <p className="text-xs text-orange-400/80 mt-0.5">
                 {statusCounts.pendingReapproval} request(s) previously conflicted can now be funded. Admin must manually approve or reject each one.
               </p>
@@ -157,18 +157,18 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
           <div className="p-4 border-b border-gray-800">
             <h3 className="text-sm font-medium text-white">Recent Requests</h3>
           </div>
           <div className="divide-y divide-gray-800">
             {requests.slice(0, 5).map((req) => (
-              <div key={req._id} className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-white font-medium">{req.departmentName}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{req.justification}</p>
+              <div key={req._id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-850/50 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-white font-medium truncate">{req.departmentName}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{req.justification}</p>
                 </div>
-                <div className="flex items-center gap-3 ml-4">
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                   <span className="text-sm font-semibold text-white">{formatCurrency(req.requestedAmount)}</span>
                   <StatusBadge status={req.status} />
                 </div>

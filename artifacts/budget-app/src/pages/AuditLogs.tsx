@@ -115,22 +115,22 @@ export default function AuditLogs() {
         </div>
       )}
 
-      <div className="p-6 space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <ClipboardList size={22} className="text-blue-400" />
-              Audit Logs
+            <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+              <ClipboardList size={22} className="text-blue-400 shrink-0" />
+              <span>Audit Logs</span>
             </h1>
-            <p className="text-gray-400 text-sm mt-0.5">Complete history of all system actions</p>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">Complete history of all system actions</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 self-start sm:self-auto">
             {(["json", "csv"] as const).map((fmt) => (
               <button
                 key={fmt}
                 onClick={() => handleExport(fmt)}
                 disabled={!!exportLoading[fmt] || loading}
-                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-xs px-3 py-2 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-xs px-3 py-2 rounded-lg transition-colors border border-gray-700/50"
               >
                 {exportLoading[fmt]
                   ? <Loader2 size={12} className="animate-spin" />
@@ -165,11 +165,11 @@ export default function AuditLogs() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Search by user, action, or description…"
-            className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+            className="w-full bg-gray-900 border border-gray-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 placeholder-gray-500"
           />
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-sm">
           {loading ? (
             <div className="p-10 text-center">
               <Loader2 size={24} className="mx-auto mb-2 text-blue-400 animate-spin" />
@@ -177,7 +177,7 @@ export default function AuditLogs() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[650px]">
                 <thead>
                   <tr className="border-b border-gray-800">
                     <th className="text-left text-xs text-gray-500 px-4 py-3 whitespace-nowrap">Time</th>
@@ -190,7 +190,7 @@ export default function AuditLogs() {
                 <tbody className="divide-y divide-gray-800">
                   {filtered.map((log) => (
                     <tr key={log._id} className="hover:bg-gray-800/30 transition-colors">
-                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
                         {new Date(log.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
                       </td>
                       <td className="px-4 py-3">
@@ -226,7 +226,7 @@ export default function AuditLogs() {
         </div>
 
         {!loading && !error && (
-          <p className="text-xs text-gray-600 text-center">
+          <p className="text-xs text-gray-500 text-center">
             {filtered.length} of {logs.length} entries shown
             {filter && filtered.length < logs.length && " (filtered) — export will include only visible entries"}
           </p>

@@ -17,7 +17,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!token) return;
 
-    const socket = io(window.location.origin, {
+    const targetOrigin = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "") || window.location.origin;
+
+    const socket = io(targetOrigin, {
       path: "/api/socket.io",
       auth: { token },
       transports: ["websocket", "polling"],

@@ -26,22 +26,23 @@ interface Request {
   justification: string;
 }
 
-function RequestList({ requests, selectedId }: { requests: Request[]; selectedId?: string }) {
+function RequestList({ requests, selectedId, onSelect }: { requests: Request[]; selectedId?: string; onSelect?: () => void }) {
   return (
-    <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
-      <div className="p-4 border-b border-gray-800">
-        <h3 className="text-sm font-medium text-white">Negotiations</h3>
+    <div className={`w-full md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 ${selectedId ? "hidden md:flex" : "flex"}`}>
+      <div className="p-4 border-b border-gray-800 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-white">Negotiations</h3>
+        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">{requests.length}</span>
       </div>
       <div className="flex-1 overflow-y-auto divide-y divide-gray-800">
         {requests.map((r) => (
-          <Link key={r._id} href={`/negotiation/${r._id}`} className={`block p-4 hover:bg-gray-800 transition-colors ${selectedId === r._id ? "bg-gray-800 border-l-2 border-blue-500" : ""}`}>
+          <Link key={r._id} href={`/negotiation/${r._id}`} onClick={onSelect} className={`block p-4 hover:bg-gray-800 transition-colors ${selectedId === r._id ? "bg-gray-800 border-l-2 border-blue-500" : ""}`}>
             <p className="text-sm font-medium text-white">{r.departmentName}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(r.requestedAmount)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{formatCurrency(r.requestedAmount)}</p>
             <div className="mt-1.5"><StatusBadge status={r.status} /></div>
           </Link>
         ))}
         {requests.length === 0 && (
-          <p className="p-4 text-xs text-gray-500">No negotiations yet</p>
+          <p className="p-4 text-xs text-gray-500 text-center">No negotiations yet</p>
         )}
       </div>
     </div>
@@ -115,45 +116,50 @@ export default function NegotiationPanel() {
 
   return (
     <Layout>
-      <div className="flex h-full">
+      <div className="flex h-full min-h-[calc(100vh-60px)] lg:min-h-full">
         <RequestList requests={requests} selectedId={requestId} />
 
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col min-w-0 bg-gray-950 ${!requestId ? "hidden md:flex" : "flex"}`}>
           {requestId && request ? (
             <>
-              <div className="p-4 border-b border-gray-800 bg-gray-900 flex items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-semibold text-white">{request.departmentName}</h2>
-                    <StatusBadge status={request.status} />
+              <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-900 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Link href="/negotiation" className="md:hidden text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg border border-gray-700 transition-colors shrink-0">
+                    ← Back
+                  </Link>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-sm font-semibold text-white truncate">{request.departmentName}</h2>
+                      <StatusBadge status={request.status} />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">
+                      {formatCurrency(request.requestedAmount)} requested — {request.justification}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {formatCurrency(request.requestedAmount)} requested — {request.justification}
-                  </p>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
                 {messages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                    <MessageSquare size={32} className="mb-2 opacity-30" />
-                    <p className="text-sm">No messages yet. Start the negotiation.</p>
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500 py-12">
+                    <MessageSquare size={36} className="mb-2 opacity-30" />
+                    <p className="text-sm text-center">No messages yet. Start the negotiation.</p>
                   </div>
                 )}
                 {messages.map((msg) => {
                   const isMe = msg.senderName === user?.username;
                   return (
                     <div key={msg._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-sm ${isMe ? "items-end" : "items-start"} flex flex-col gap-1`}>
+                      <div className={`max-w-[85%] sm:max-w-md ${isMe ? "items-end" : "items-start"} flex flex-col gap-1`}>
                         {!isMe && (
-                          <span className="text-xs text-gray-500 px-1">
-                            {msg.senderName} <span className="text-gray-600">({msg.senderRole.replace(/_/g, " ")})</span>
+                          <span className="text-[11px] text-gray-400 px-1">
+                            {msg.senderName} <span className="text-gray-500">({msg.senderRole.replace(/_/g, " ")})</span>
                           </span>
                         )}
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm ${isMe ? "bg-blue-600 text-white rounded-br-sm" : "bg-gray-800 text-gray-100 rounded-bl-sm"}`}>
+                        <div className={`px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-2xl text-xs sm:text-sm break-words ${isMe ? "bg-blue-600 text-white rounded-br-sm" : "bg-gray-800 text-gray-100 rounded-bl-sm"}`}>
                           {msg.message}
                         </div>
-                        <span className="text-xs text-gray-600 px-1">
+                        <span className="text-[10px] text-gray-500 px-1">
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </div>
@@ -163,26 +169,26 @@ export default function NegotiationPanel() {
                 <div ref={bottomRef} />
               </div>
 
-              <form onSubmit={send} className="p-4 border-t border-gray-800 flex gap-3">
+              <form onSubmit={send} className="p-3 sm:p-4 border-t border-gray-800 flex gap-2 sm:gap-3 bg-gray-900">
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-blue-500"
                 />
                 <button
                   type="submit"
                   disabled={!text.trim() || sending}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white px-3.5 sm:px-4 py-2 rounded-xl transition-colors flex items-center justify-center shrink-0"
                 >
                   <Send size={16} />
                 </button>
               </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-6">
               <MessageSquare size={48} className="mb-3 opacity-20" />
-              <p className="text-sm">Select a request to start negotiating</p>
+              <p className="text-sm text-center">Select a request to start negotiating</p>
             </div>
           )}
         </div>

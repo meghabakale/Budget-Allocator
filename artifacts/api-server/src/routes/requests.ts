@@ -61,7 +61,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
       actionType: "REQUEST_CREATED",
       entityId: request._id,
       entityType: "BudgetRequest",
-      newState: request.toObject() as Record<string, unknown>,
+      newState: request.toObject() as unknown as Record<string, unknown>,
       description: `Budget request created for ${user.department}: ₹${requestedAmount.toLocaleString("en-IN")} — status: PENDING (awaiting admin review)`,
     });
 
@@ -170,8 +170,8 @@ router.patch("/:id/status", authenticate, async (req: AuthRequest, res) => {
       actionType: actionTypeMap[newStatus] ?? `STATUS_CHANGED_${newStatus.toUpperCase()}`,
       entityId: request._id,
       entityType: "BudgetRequest",
-      previousState: { ...prev, previousStatus: prevStatus } as Record<string, unknown>,
-      newState: { ...request.toObject(), newStatus } as Record<string, unknown>,
+      previousState: { ...prev, previousStatus: prevStatus } as unknown as Record<string, unknown>,
+      newState: { ...request.toObject(), newStatus } as unknown as Record<string, unknown>,
       description: `${req.user!.username} changed ${request.departmentName} status: ${prevStatus} → ${newStatus}${reason ? ` | Reason: ${reason}` : ""}${adminNote ? ` | Note: ${adminNote}` : ""}`,
     });
 
@@ -238,8 +238,8 @@ router.put("/:id", authenticate, async (req: AuthRequest, res) => {
       actionType: "REQUEST_UPDATED",
       entityId: request._id,
       entityType: "BudgetRequest",
-      previousState: prev as Record<string, unknown>,
-      newState: request.toObject() as Record<string, unknown>,
+      previousState: prev as unknown as Record<string, unknown>,
+      newState: request.toObject() as unknown as Record<string, unknown>,
       description: `Budget request updated for ${request.departmentName}: amount=₹${request.requestedAmount.toLocaleString("en-IN")}, priority=${request.priorityLevel}`,
     });
 
@@ -275,7 +275,7 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
       actionType: "REQUEST_DELETED",
       entityId: id as unknown as mongoose.Types.ObjectId,
       entityType: "BudgetRequest",
-      previousState: request.toObject() as Record<string, unknown>,
+      previousState: request.toObject() as unknown as Record<string, unknown>,
       description: `Budget request deleted for ${request.departmentName} (₹${request.requestedAmount.toLocaleString("en-IN")})`,
     });
 

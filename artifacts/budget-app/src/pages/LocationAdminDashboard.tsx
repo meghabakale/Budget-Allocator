@@ -75,9 +75,10 @@ export default function LocationAdminDashboard() {
       ]);
       setRequests(reqs as unknown as Request[]);
       setDepartments(depts as unknown as DeptUser[]);
+      const sumArr = sum as unknown as AllocSummary[];
       const s = Array.isArray(sum)
-        ? sum.find((x: AllocSummary) => x.location === user?.location) ?? (sum[0] as unknown as AllocSummary)
-        : sum as unknown as AllocSummary;
+        ? sumArr.find((x) => x.location === user?.location) ?? sumArr[0] ?? null
+        : (sum as unknown as AllocSummary);
       setSummary(s);
     } catch {
       showToast("Failed to load data", false);
@@ -322,46 +323,46 @@ export default function LocationAdminDashboard() {
         }`}>{toast.msg}</div>
       )}
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <MapPin size={24} className="text-blue-400" />
-              {user?.location} Admin Dashboard
+            <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+              <MapPin size={24} className="text-blue-400 shrink-0" />
+              <span>{user?.location} Admin Dashboard</span>
             </h1>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-gray-400 text-xs sm:text-sm mt-0.5">
               Manage departments and budget requests for {user?.location}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <input
               type="number"
               value={demandInput}
               onChange={(e) => setDemandInput(e.target.value)}
               placeholder="Total demand (₹)"
-              className="w-44 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              className="flex-1 sm:w-44 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
             />
             <button onClick={handleSubmitDemand} disabled={submittingDemand}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors shrink-0">
               {submittingDemand ? <Loader2 size={14} className="animate-spin" /> : <IndianRupee size={14} />}
-              Submit Demand
+              <span>Submit Demand</span>
             </button>
           </div>
         </div>
 
         {/* Summary cards */}
         {summary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[
               { label: "Total Demand", value: fmtShort(summary.totalDemand), color: "text-amber-400", bg: "bg-amber-900/20" },
               { label: "Allocated Budget", value: fmtShort(summary.allocatedBudget), color: "text-blue-400", bg: "bg-blue-900/20" },
               { label: "Used Budget", value: fmtShort(summary.usedBudget), color: "text-emerald-400", bg: "bg-emerald-900/20" },
               { label: "Remaining", value: fmtShort(summary.remainingBudget), color: summary.remainingBudget < 0 ? "text-red-400" : "text-gray-300", bg: "bg-gray-800/50" },
             ].map((c) => (
-              <div key={c.label} className={`${c.bg} border border-gray-800 rounded-xl p-4`}>
-                <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-                <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
+              <div key={c.label} className={`${c.bg} border border-gray-800 rounded-xl p-3.5 sm:p-4`}>
+                <p className="text-xs text-gray-400 mb-1 truncate">{c.label}</p>
+                <p className={`text-lg sm:text-xl font-bold ${c.color}`}>{c.value}</p>
               </div>
             ))}
           </div>
@@ -369,26 +370,28 @@ export default function LocationAdminDashboard() {
 
         {/* Chart + scores */}
         {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-              <h3 className="text-sm font-semibold text-white mb-4">Budget Overview — {user?.location}</h3>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={barData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
-                  <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#9ca3af", fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: "#9ca3af", fontSize: 12 }} width={70} />
-                  <Tooltip
-                    formatter={(v: number) => [formatCurrency(v)]}
-                    contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
-                  />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+              <h3 className="text-xs sm:text-sm font-semibold text-white mb-4">Budget Overview — {user?.location}</h3>
+              <div className="w-full overflow-x-auto">
+                <ResponsiveContainer width="100%" height={200} minWidth={280}>
+                  <BarChart data={barData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" horizontal={false} />
+                    <XAxis type="number" tickFormatter={fmtAxis} tick={{ fill: "#9ca3af", fontSize: 11 }} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: "#9ca3af", fontSize: 11 }} width={65} />
+                    <Tooltip
+                      formatter={(v: number) => [formatCurrency(v)]}
+                      contentStyle={{ backgroundColor: "#1f2937", border: "1px solid #374151", borderRadius: 8 }}
+                    />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-white">Allocation Scores</h3>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5 space-y-3">
+              <h3 className="text-xs sm:text-sm font-semibold text-white">Allocation Scores</h3>
               {[
                 { label: "Priority Score", value: `${summary.priorityScore}/10`, pct: summary.priorityScore / 10, color: "bg-blue-500" },
                 { label: "Performance Score", value: `${(summary.performanceScore * 100).toFixed(0)}%`, pct: summary.performanceScore, color: "bg-emerald-500" },
@@ -403,7 +406,7 @@ export default function LocationAdminDashboard() {
                   </div>
                 </div>
               ))}
-              <p className="text-xs text-gray-600 pt-2">Score = 50%×Priority + 30%×Demand + 20%×Performance</p>
+              <p className="text-xs text-gray-500 pt-2">Score = 50%×Priority + 30%×Demand + 20%×Performance</p>
             </div>
           </div>
         )}
@@ -452,20 +455,20 @@ export default function LocationAdminDashboard() {
         />
 
         {/* Departments */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+          <h3 className="text-xs sm:text-sm font-semibold text-white mb-4 flex items-center gap-2">
             <Users size={16} className="text-blue-400" />
-            Department Heads in {user?.location} ({departments.length})
+            <span>Department Heads in {user?.location} ({departments.length})</span>
           </h3>
           {departments.length === 0 ? (
             <p className="text-gray-500 text-sm">No department heads registered for this location yet.</p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {departments.map((d) => (
                 <div key={d._id} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3">
                   <p className="text-sm font-medium text-white">{d.username}</p>
                   <p className="text-xs text-blue-400">{d.department}</p>
-                  <p className="text-xs text-gray-500">{d.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{d.email}</p>
                 </div>
               ))}
             </div>
@@ -475,10 +478,10 @@ export default function LocationAdminDashboard() {
         {/* Other requests (approved/rejected) */}
         {otherRequests.length > 0 && (
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            <div className="p-5 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <div className="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between">
+              <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
                 <AlertTriangle size={16} className="text-amber-400" />
-                Resolved Requests — {user?.location}
+                <span>Resolved Requests — {user?.location}</span>
               </h3>
               <span className="text-xs text-gray-500">{otherRequests.length} requests</span>
             </div>

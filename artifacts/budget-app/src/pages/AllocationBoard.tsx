@@ -215,21 +215,21 @@ export default function AllocationBoard() {
         <DetailModal req={selectedReq} onClose={() => setSelectedReq(null)} />
       )}
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-white">Allocation Board</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-bold text-white">Allocation Board</h1>
+          <p className="text-gray-400 text-xs sm:text-sm mt-0.5">
             Real-time budget monitoring across departments — click any request to view details
           </p>
         </div>
 
         {/* Budget breakdown bar */}
         {budget && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-400">Budget Breakdown</h3>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-400">Budget Breakdown</h3>
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500 font-mono">
                 <span>Total: <span className="text-white font-medium">{formatCurrency(budget.totalBudget)}</span></span>
                 <span>Allocated: <span className="text-green-400 font-medium">{formatCurrency(budget.allocatedAmount)}</span></span>
                 <span>Remaining: <span className="text-yellow-400 font-medium">{formatCurrency(budget.remainingAmount)}</span></span>
@@ -258,31 +258,31 @@ export default function AllocationBoard() {
                 title={`Remaining: ${formatCurrency(budget.remainingAmount)}`}
               />
             </div>
-            <div className="flex flex-wrap gap-3 mt-2">
+            <div className="flex flex-wrap gap-2.5 sm:gap-3 mt-3">
               {approved.map((req) => (
                 <div key={req._id} className="flex items-center gap-1.5 text-xs text-gray-400">
                   <div className={`w-2 h-2 rounded-sm ${DEPT_COLORS[req.departmentName] || "bg-gray-600"}`} />
-                  {req.departmentName}
+                  <span>{req.departmentName}</span>
                 </div>
               ))}
               <div className="flex items-center gap-1.5 text-xs text-gray-500">
                 <div className="w-2 h-2 rounded-sm bg-gray-700" />
-                Remaining
+                <span>Remaining</span>
               </div>
             </div>
           </div>
         )}
 
         {/* Search & Filters */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-48">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+          <div className="relative flex-1 min-w-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
               type="text"
               placeholder="Search by department, justification, location…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-8 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white">
@@ -291,54 +291,56 @@ export default function AllocationBoard() {
             )}
           </div>
 
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-          >
-            <option value="all">All Statuses</option>
-            {STATUS_GROUPS.map((g) => (
-              <option key={g.key} value={g.key}>{g.label}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="flex-1 sm:flex-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Statuses</option>
+              {STATUS_GROUPS.map((g) => (
+                <option key={g.key} value={g.key}>{g.label}</option>
+              ))}
+            </select>
 
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-          >
-            <option value="all">All Priorities</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
+            <select
+              value={filterPriority}
+              onChange={(e) => setFilterPriority(e.target.value)}
+              className="flex-1 sm:flex-none bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+            >
+              <option value="all">All Priorities</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
 
-          <span className="text-xs text-gray-500 shrink-0">
+          <span className="text-xs text-gray-500 shrink-0 self-end sm:self-center">
             {filtered.length} of {requests.length} requests
           </span>
         </div>
 
         {/* Status columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           {STATUS_GROUPS.map((group) => {
             const items = filtered.filter((r) => group.statuses.includes(r.status));
             return (
               <div key={group.key} className={`bg-gray-900 border ${group.border} rounded-xl flex flex-col`}>
                 <div className="p-3 border-b border-gray-800 flex items-center justify-between">
-                  <h3 className="text-xs font-medium text-white flex items-center gap-1.5">
+                  <h3 className="text-xs font-medium text-white flex items-center gap-1.5 truncate">
                     {group.icon}
                     <span className="truncate">{group.label}</span>
                   </h3>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full border ${group.badge}`}>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full border shrink-0 ${group.badge}`}>
                     {items.length}
                   </span>
                 </div>
-                <div className="p-2 space-y-2 overflow-y-auto max-h-[420px] flex-1">
+                <div className="p-2 space-y-2 overflow-y-auto max-h-[380px] sm:max-h-[420px] flex-1">
                   {items.map((req) => (
                     <RequestCard key={req._id} req={req} onClick={() => setSelectedReq(req)} />
                   ))}
                   {items.length === 0 && (
-                    <p className="text-xs text-gray-700 text-center py-6">
+                    <p className="text-xs text-gray-600 text-center py-6">
                       {search || filterStatus !== "all" || filterPriority !== "all" ? "No matches" : "None"}
                     </p>
                   )}

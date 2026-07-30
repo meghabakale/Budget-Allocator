@@ -1,0 +1,10 @@
+{
+  "buildCommand": "npm run build --workspace=@workspace/budget-app",
+  "outputDirectory": "artifacts/budget-app/dist/public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

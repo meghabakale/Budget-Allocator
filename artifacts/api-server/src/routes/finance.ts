@@ -105,8 +105,8 @@ router.put("/override-allocation", authenticate, requireFinanceManager, async (r
       actionType: "FINANCE_OVERRIDE_ALLOCATION",
       entityId: adminId as unknown as mongoose.Types.ObjectId,
       entityType: "AdminAllocation",
-      previousState: prev?.toObject() as Record<string, unknown>,
-      newState: updated.toObject() as Record<string, unknown>,
+      previousState: prev?.toObject() as unknown as Record<string, unknown>,
+      newState: updated.toObject() as unknown as Record<string, unknown>,
       description: `Finance Manager overrode allocation for ${updated.location}: $${allocatedBudget.toLocaleString()}${adminNote ? ` — ${adminNote}` : ""}`,
     });
 

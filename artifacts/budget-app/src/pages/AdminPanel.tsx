@@ -224,19 +224,19 @@ export default function AdminPanel() {
         </div>
       )}
 
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
-            <p className="text-gray-400 text-sm mt-0.5">Manage budget, resolve conflicts, export data</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-white">Admin Panel</h1>
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5">Manage budget, resolve conflicts, export data</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {(["budget", "requests", "audit"] as const).map((type) => (
               <div key={type} className="relative group">
-                <button className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition-colors capitalize">
+                <button className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-3 py-2 rounded-lg transition-colors capitalize border border-gray-700/50">
                   <Download size={13} /> Export {type}
                 </button>
-                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg py-1 hidden group-hover:block z-10 w-28">
+                <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg py-1 hidden group-hover:block z-10 w-28 shadow-xl">
                   {(["json", "csv"] as const).map((fmt) => {
                     const key = `${type}-${fmt}`;
                     const busy = !!exportLoading[key];
@@ -259,9 +259,9 @@ export default function AdminPanel() {
         </div>
 
         {/* Budget Control */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 sm:p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+            <h3 className="text-xs sm:text-sm font-semibold text-white flex items-center gap-2">
               <IndianRupee size={16} className="text-blue-400" /> Budget Control
             </h3>
             {!budgetEdit ? (
@@ -274,23 +274,23 @@ export default function AdminPanel() {
                   type="number"
                   value={newBudget}
                   onChange={(e) => setNewBudget(e.target.value)}
-                  className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white w-36 focus:outline-none focus:border-blue-500"
+                  className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-white w-32 focus:outline-none focus:border-blue-500"
                 />
-                <button onClick={handleBudgetUpdate} className="text-xs bg-green-700 hover:bg-green-600 text-white px-2 py-1 rounded-lg">Save</button>
-                <button onClick={() => setBudgetEdit(false)} className="text-xs text-gray-500 hover:text-white px-1">Cancel</button>
+                <button onClick={handleBudgetUpdate} className="text-xs bg-green-700 hover:bg-green-600 text-white px-2.5 py-1 rounded-lg">Save</button>
+                <button onClick={() => setBudgetEdit(false)} className="text-xs text-gray-400 hover:text-white px-1">Cancel</button>
               </div>
             )}
           </div>
           {budget && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               {[
                 { label: "Total Budget", value: budget.totalBudget, color: "text-blue-400" },
                 { label: "Allocated", value: budget.allocatedAmount, color: "text-green-400" },
                 { label: "Remaining", value: budget.remainingAmount, color: "text-yellow-400" },
               ].map((item) => (
-                <div key={item.label} className="bg-gray-800 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">{item.label}</p>
-                  <p className={`text-xl font-bold ${item.color} mt-1`}>{formatCurrency(item.value)}</p>
+                <div key={item.label} className="bg-gray-800 rounded-lg p-3.5">
+                  <p className="text-xs text-gray-400">{item.label}</p>
+                  <p className={`text-lg sm:text-xl font-bold ${item.color} mt-1`}>{formatCurrency(item.value)}</p>
                 </div>
               ))}
             </div>
@@ -299,27 +299,27 @@ export default function AdminPanel() {
 
         {/* Conflicts section */}
         {allConflicts.length > 0 && (
-          <div className="bg-gray-900 border border-yellow-800 rounded-xl">
+          <div className="bg-gray-900 border border-yellow-800 rounded-xl overflow-hidden">
             <div className="p-4 border-b border-gray-800 flex items-center gap-2">
               <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-              <h3 className="text-sm font-semibold text-white">Conflicts Requiring Attention</h3>
+              <h3 className="text-xs sm:text-sm font-semibold text-white">Conflicts Requiring Attention</h3>
               <span className="ml-auto text-xs bg-yellow-900/50 text-yellow-300 border border-yellow-700 px-2 py-0.5 rounded-full">{allConflicts.length}</span>
             </div>
             <div className="divide-y divide-gray-800">
               {allConflicts.map((req) => (
-                <div key={req._id} className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
+                <div key={req._id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium text-white">{req.departmentName}</p>
                       <PriorityBadge priority={req.priorityLevel} />
                       <StatusBadge status={req.status} />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">{req.justification}</p>
+                    <p className="text-xs text-gray-400 mt-1 line-clamp-1">{req.justification}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
                       Requested: <span className="text-white font-semibold">{formatCurrency(req.requestedAmount)}</span>
                     </p>
                   </div>
-                  <div className="flex gap-2 ml-4">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => setResolveTarget(req)}
                       className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg transition-colors"
@@ -340,12 +340,12 @@ export default function AdminPanel() {
         )}
 
         {/* All Requests table */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden shadow-sm">
           <div className="p-4 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-white">All Requests</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-white">All Requests</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[650px]">
               <thead>
                 <tr className="border-b border-gray-800">
                   {["Department", "Requested (₹)", "Allocated (₹)", "Priority", "Status", "Actions"].map((h) => (
@@ -370,14 +370,14 @@ export default function AdminPanel() {
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => setResolveTarget(req)}
-                          className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-900/20 rounded-lg transition-colors"
                           title="Resolve"
                         >
                           <CheckCircle size={14} />
                         </button>
                         <button
                           onClick={() => handleRollback(req._id)}
-                          className="p-1.5 text-gray-500 hover:text-orange-400 hover:bg-orange-900/20 rounded-lg transition-colors"
+                          className="p-1.5 text-gray-400 hover:text-orange-400 hover:bg-orange-900/20 rounded-lg transition-colors"
                           title="Rollback"
                         >
                           <RotateCcw size={14} />

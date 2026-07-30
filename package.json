@@ -2,15 +2,24 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "workspaces": [
+    "artifacts/*",
+    "lib/*",
+    "scripts"
+  ],
   "scripts": {
     "preinstall": "node scripts/preinstall.mjs",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "dev": "concurrently -n \"API,APP\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:app\"",
+    "dev:server": "npm run dev --workspace=@workspace/api-server",
+    "dev:app": "npm run dev --workspace=@workspace/budget-app",
+    "build": "npm run typecheck && npm run build --workspaces --if-present",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "npm run typecheck:libs && npm run typecheck --workspaces --if-present"
   },
   "private": true,
   "devDependencies": {
-    "typescript": "~5.9.2",
-    "prettier": "^3.8.1"
+    "concurrently": "^10.0.4",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2"
   }
 }
