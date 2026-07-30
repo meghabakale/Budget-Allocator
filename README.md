@@ -103,27 +103,6 @@ npm run dev
 
 ---
 
-## 🌐 Deployment Guide
-
-### Frontend (`@workspace/budget-app`) — Vercel
-1. Import `meghabakale/Budget-Allocator` in [Vercel](https://vercel.com).
-2. Keep the **Root Directory** as `./` (default).
-3. The root `vercel.json` automatically configures the build:
-   - **Build Command**: `npm run build --workspace=@workspace/budget-app`
-   - **Install Command**: `npm install --include=dev`
-   - **Output Directory**: `artifacts/budget-app/dist/public`
-
-### Backend (`@workspace/api-server`) — Render / Railway
-The backend runs Express + Socket.IO WebSockets and MongoDB.
-
-1. Connect your repository in [Render](https://render.com).
-2. Render detects `render.yaml` automatically:
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm run start --workspace=@workspace/api-server`
-3. Add environment variables: `MONGODB_URI`, `JWT_SECRET`, `NODE_ENV=production`.
-
----
-
 ## 📜 Available Scripts
 
 | Command | Action |
