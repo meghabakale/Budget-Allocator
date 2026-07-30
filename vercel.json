@@ -1,6 +1,8 @@
 {
+  "installCommand": "npm install --include=dev",
   "buildCommand": "npm run build --workspace=@workspace/budget-app",
   "outputDirectory": "artifacts/budget-app/dist/public",
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/(.*)",
