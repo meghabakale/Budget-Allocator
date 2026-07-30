@@ -17,6 +17,9 @@
     "typecheck": "npm run typecheck:libs && npm run typecheck --workspaces --if-present"
   },
   "private": true,
+  "dependencies": {
+    "vite": "^7.3.2"
+  },
   "devDependencies": {
     "concurrently": "^10.0.4",
     "prettier": "^3.8.1",
