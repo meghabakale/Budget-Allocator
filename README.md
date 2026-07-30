@@ -1,17 +1,21 @@
 # 💼 BudgetFlow — Collaborative Budget & Asset Management
 
-BudgetFlow is a real-time, enterprise-grade collaborative budget allocation and asset management application built with **React**, **Node.js/Express**, **MongoDB**, and **Socket.IO**.
+BudgetFlow is a real-time, enterprise-grade collaborative budget allocation and asset management application built with **React**, **Node.js / Express**, **MongoDB**, and **Socket.IO**.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- **📊 Real-Time Financial Dashboards**: Interactive charts and live allocation metrics.
-- **⚡ Live Collaboration**: WebSockets powered by Socket.IO for instant multi-user budget updates.
-- **🛡️ Role-Based Access Control (RBAC)**: Fine-grained permissions for Admins, Finance Managers, Location Admins, and Requesters.
-- **📝 Request & Approval Workflows**: Formal budget requests, status tracking, and automated recalculation engines.
-- **🤝 Conflict Resolution & Negotiation**: Panel interface for negotiating budget adjustments and auditing changes.
-- **📜 Comprehensive Audit Logging**: Immutable audit trails for transparent compliance tracking.
+- **📊 Real-Time Financial Dashboards**: Interactive metrics, charts, and live budget allocation summaries.
+- **⚡ Multi-User Collaboration**: Live WebSockets powered by Socket.IO for instant real-time synchronization across sessions.
+- **🛡️ Role-Based Access Control (RBAC)**: Tailored dashboards and granular permission controls for:
+  - **Super Admin**: System-wide configuration, user role management, and global oversight.
+  - **Finance Manager**: High-level budget distribution, global approval workflows, and metrics tracking.
+  - **Location Admin**: Regional asset management, location-based budget tracking, and request handling.
+  - **Requester**: Simple budget request submissions and personal request tracking.
+- **📝 Request & Approval Workflows**: Formal budget requests, status tracking, automated recalculation, and data exports.
+- **🤝 Negotiation & Conflict Resolution**: Dedicated negotiation panel for budget allocation disputes and counter-offers.
+- **📜 Comprehensive Audit Logs**: Immutable activity trails for transparent financial compliance.
 
 ---
 
@@ -21,8 +25,8 @@ BudgetFlow is a real-time, enterprise-grade collaborative budget allocation and 
 - **Framework**: React 19 + TypeScript
 - **Build Tool**: Vite 7
 - **Styling**: TailwindCSS v4 + Radix UI Primitives + Framer Motion
-- **State & Data**: TanStack Query v5 + Socket.IO Client
-- **Charts & Data Viz**: Recharts + Lucide Icons
+- **State & Data**: TanStack Query v5 + Socket.IO Client + Wouter Router
+- **Visualization**: Recharts + Lucide Icons + Sonner Toasts
 
 ### Backend (`@workspace/api-server`)
 - **Runtime**: Node.js 20+ LTS
@@ -30,7 +34,12 @@ BudgetFlow is a real-time, enterprise-grade collaborative budget allocation and 
 - **Database**: MongoDB + Mongoose 9
 - **Real-Time Engine**: Socket.IO 4
 - **Security & Auth**: JWT + Cookie-Parser + Bcryptjs
-- **Validation**: Zod + Pino Logger
+- **Validation & Logging**: Zod + Pino Logger
+
+### Shared Monorepo Packages (`lib/`)
+- `@workspace/api-zod`: Shared Zod validation schemas
+- `@workspace/db`: Centralized database schemas and models
+- `@workspace/api-client-react`: React hooks and client bindings
 
 ---
 
@@ -38,51 +47,53 @@ BudgetFlow is a real-time, enterprise-grade collaborative budget allocation and 
 
 ```
 ├── artifacts/
-│   ├── api-server/         # Express REST API & Socket.IO server
+│   ├── api-server/         # Express REST API & Socket.IO WebSockets server
 │   └── budget-app/         # Vite + React single-page frontend application
 ├── lib/
 │   ├── api-client-react/   # TanStack Query React hooks & client bindings
 │   ├── api-spec/           # OpenAPI specs & Orval codegen configuration
 │   ├── api-zod/            # Zod validation schemas
 │   └── db/                 # Shared database models & schemas
-├── scripts/                # Build and maintenance scripts
-├── package.json            # Monorepo configuration (npm workspaces)
-├── WINDOWS_SETUP.md        # Windows local environment guide
+├── scripts/                # Utility and preinstall scripts
+├── package.json            # Monorepo workspace configuration
+├── vercel.json             # Vercel deployment configuration
+├── render.yaml             # Render deployment configuration
 └── README.md               # Project documentation
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Local Development)
 
 ### 1. Prerequisites
 - **Node.js** v20+ LTS
-- **npm** v10+ (included with Node.js)
-- **MongoDB** v7+ (Local service or MongoDB Atlas cluster)
+- **npm** v10+
+- **MongoDB** v7+ (Local service or MongoDB Atlas connection)
 
 ### 2. Installation
-Clone the repository and install all workspace dependencies:
+Clone the repository and install all monorepo workspace dependencies:
 ```bash
-git clone <repo-url>
-cd Asset-Manager-1zip
+git clone https://github.com/meghabakale/Budget-Allocator.git
+cd Budget-Allocator
 npm install
 ```
 
-### 3. Environment Variables
+### 3. Environment Setup
 Copy `.env.example` to `.env` in the project root:
 ```bash
-Copy-Item .env.example .env
+cp .env.example .env
 ```
-Ensure your `.env` contains:
+
+Ensure `.env` contains your database and server configuration:
 ```env
-MONGODB_URI=mongodb+srv://...
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/budgetflow
 JWT_SECRET=your_jwt_secret_key
 SESSION_SECRET=your_session_secret_key
 PORT=8080
 ```
 
-### 4. Running the Application
-To run both the **API Server** and **Frontend Application** concurrently:
+### 4. Run the Development Server
+Start both the **API Server** and **Frontend Application** concurrently:
 ```bash
 npm run dev
 ```
@@ -92,21 +103,36 @@ npm run dev
 
 ---
 
-## 📜 Available NPM Scripts
+## 🌐 Deployment Guide
 
-| Script | Description |
-| :--- | :--- |
-| `npm run dev` | Starts API Server (port 8080) and Frontend App (port 24432) concurrently |
-| `npm run dev:server` | Starts the Express API server only |
-| `npm run dev:app` | Starts the Vite React frontend app only |
-| `npm run build` | Typechecks and builds all workspace packages for production |
-| `npm run typecheck` | Validates TypeScript compilation across all workspace packages |
+### Frontend (`@workspace/budget-app`) — Vercel
+1. Import `meghabakale/Budget-Allocator` in [Vercel](https://vercel.com).
+2. Keep the **Root Directory** as `./` (default).
+3. The root `vercel.json` automatically configures the build:
+   - **Build Command**: `npm run build --workspace=@workspace/budget-app`
+   - **Install Command**: `npm install --include=dev`
+   - **Output Directory**: `artifacts/budget-app/dist/public`
+
+### Backend (`@workspace/api-server`) — Render / Railway
+The backend runs Express + Socket.IO WebSockets and MongoDB.
+
+1. Connect your repository in [Render](https://render.com).
+2. Render detects `render.yaml` automatically:
+   - **Build Command**: `npm install && npm run build`
+   - **Start Command**: `npm run start --workspace=@workspace/api-server`
+3. Add environment variables: `MONGODB_URI`, `JWT_SECRET`, `NODE_ENV=production`.
 
 ---
 
-## 📄 Documentation
+## 📜 Available Scripts
 
-For detailed Windows environment instructions and troubleshooting, refer to [WINDOWS_SETUP.md](WINDOWS_SETUP.md).
+| Command | Action |
+| :--- | :--- |
+| `npm run dev` | Starts Express API (port 8080) and React Frontend (port 24432) concurrently |
+| `npm run dev:server` | Starts the Express API server only |
+| `npm run dev:app` | Starts the Vite React frontend only |
+| `npm run build` | Builds all monorepo packages for production |
+| `npm run typecheck` | Runs TypeScript compilation checks across all workspaces |
 
 ---
 
